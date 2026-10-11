@@ -41,7 +41,7 @@ Follow INTEGRATIONS.md to authorize the Telegram source and configure bot webhoo
 - [ ] Two real staging users complete onboarding.
 - [ ] One current authoritative event passes admin review and appears in discovery.
 - [ ] Closed/expired/cancelled/stale event does not appear as an active opportunity.
-- [ ] Invitation acceptance persists and simultaneous acceptance cannot exceed capacity.
+- [x] Native PostgreSQL CI confirms persistence and simultaneous acceptance capacity. Repeat with deployed staging users.
 - [ ] Squad chat survives refresh/logout and realtime updates reach another account.
 - [ ] A stranger/former member cannot retrieve or subscribe to private messages.
 - [ ] Tasks, comments, milestones and calculated progress persist.
