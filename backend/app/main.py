@@ -64,6 +64,13 @@ def public_profile(p):
     if p['visibility'].get('links'):
         for k in ['github_url','linkedin_url','portfolio_url']:result[k]=p[k]
     return result
+async def ensure_no_event_conflict(c,user_id,event):
+    # Serialize this user's memberships across distinct squads/events.
+    await c.execute('SELECT id FROM user_profiles WHERE id=%s FOR UPDATE',(user_id,))
+    if await db.one(c,'SELECT 1 FROM team_members WHERE user_id=%s AND hackathon_id=%s',(user_id,event['id'])):raise HTTPException(409,'Already a member of a squad for this hackathon')
+    if event.get('starts_at') and event.get('ends_at'):
+        conflict=await db.one(c,'SELECT 1 FROM team_members m JOIN hackathons h ON h.id=m.hackathon_id WHERE m.user_id=%s AND NOT h.cancelled AND h.starts_at<%s AND h.ends_at>%s LIMIT 1',(user_id,event['ends_at'],event['starts_at']))
+        if conflict:raise HTTPException(409,'Another squad event overlaps this hackathon')
 async def require_member(c,team_id,user_id,leader=False,lock=False):
     t=await db.one(c,'SELECT * FROM teams WHERE id=%s'+(' FOR UPDATE' if lock else ''),(team_id,))
     if not t:raise HTTPException(404,'Squad not found')
@@ -138,10 +145,9 @@ async def delete_account(user=Depends(actor)):
             else:await c.execute('DELETE FROM teams WHERE id=%s',(team['id'],))
         # Imported personal information must also disappear on deletion.
         await c.execute('DELETE FROM imported_students WHERE claimed_by=%s OR email=%s',(user['id'],user.get('email','').casefold()))
-    s=settings()
-    if not s.supabase_service_role_key:raise HTTPException(503,'Account deletion is not configured')
     async with httpx.AsyncClient(timeout=15) as client:
-        r=await client.delete(s.supabase_url+'/auth/v1/admin/users/'+user['id'],headers={'apikey':s.supabase_service_role_key,'Authorization':'Bearer '+s.supabase_service_role_key})
+        try:r=await client.delete(s.supabase_url+'/auth/v1/admin/users/'+user['id'],headers={'apikey':s.supabase_service_role_key,'Authorization':'Bearer '+s.supabase_service_role_key})
+        except httpx.HTTPError:raise HTTPException(503,'Account deletion service is unavailable. Retry or contact support.')
         if r.status_code not in (200,204):raise HTTPException(503,'Account deletion failed. Retry or contact support.')
     return {'deleted':True}
 @app.get('/api/v1/hackathons')
@@ -197,8 +203,13 @@ async def teammates(event_id:UUID,team_id:UUID|None=None,ideal:bool=False,user=D
             members=[await get_profile(c,r['user_id']) for r in rows if str(r['user_id'])!=user['id']]
         ids=await db.all_rows(c,"SELECT p.id FROM user_profiles p WHERE p.id<>%s AND p.discoverable AND p.contact_consent AND p.open_to_invitations AND p.onboarding_complete AND NOT EXISTS(SELECT 1 FROM team_members m WHERE m.user_id=p.id AND m.hackathon_id=%s) AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=%s AND b.blocked_id=p.id) OR (b.blocked_id=%s AND b.blocker_id=p.id)) ORDER BY p.updated_at DESC LIMIT 500",(user['id'],event_id,user['id'],user['id']))
         candidates=[await get_profile(c,r['id']) for r in ids];ranked=rank_candidates(p,e,candidates,members)
+        if ideal:
+            result=optimize_squad(ranked,min(e['maximum_team_size'],p['preferred_team_size'])-len(members)-1)
+            for item in result['members']:
+                item['proposed_role']=next(iter(item['profile'].get('roles',[])),'Discuss with the candidate')
+                item['profile']=public_profile(item['profile'])
+            return result
         for item in ranked:item['profile']=public_profile(item['profile'])
-        if ideal:return optimize_squad(ranked,e['maximum_team_size']-len(members)-1)
         return {'items':ranked[:50],'bounded_to':500}
 @app.post('/api/v1/teams',status_code=201)
 async def create_team(body:TeamCreate,user=Depends(actor)):
@@ -206,6 +217,7 @@ async def create_team(body:TeamCreate,user=Depends(actor)):
         e=await get_event(c,body.hackathon_id);p=await get_profile(c,user['id'])
         if not p['onboarding_complete']:raise HTTPException(409,'Complete your profile first')
         if not actionable(e,max_age_days=settings().verification_max_age_days) or not recommend(p,e)['actionable']:raise HTTPException(409,'Review eligibility and event availability before forming a squad')
+        await ensure_no_event_conflict(c,user['id'],e)
         t=await db.one(c,'INSERT INTO teams(hackathon_id,name,leader_id) VALUES(%s,%s,%s) RETURNING *',(body.hackathon_id,body.name,user['id']))
         await c.execute("INSERT INTO team_members(team_id,user_id,hackathon_id,role) VALUES(%s,%s,%s,'leader')",(t['id'],user['id'],body.hackathon_id))
         await activity(c,t['id'],user['id'],'squad_created');return t
@@ -245,6 +257,7 @@ async def respond(invitation_id:UUID,body:InvitationResponse,user=Depends(actor)
             if await db.one(c,'SELECT 1 FROM user_blocks WHERE (blocker_id=%s AND blocked_id=%s) OR (blocked_id=%s AND blocker_id=%s)',(user['id'],t['leader_id'],user['id'],t['leader_id'])):raise HTTPException(403,'Invitation is blocked')
             count=await db.one(c,'SELECT count(*) AS n FROM team_members WHERE team_id=%s',(t['id'],))
             if count['n']>=e['maximum_team_size']:raise HTTPException(409,'Squad is full')
+            await ensure_no_event_conflict(c,user['id'],e)
             await c.execute('INSERT INTO team_members(team_id,user_id,hackathon_id) VALUES(%s,%s,%s)',(t['id'],user['id'],t['hackathon_id']))
             await c.execute("UPDATE team_invitations SET status='cancelled',responded_at=now() WHERE recipient_id=%s AND status='pending' AND id<>%s AND team_id IN(SELECT id FROM teams WHERE hackathon_id=%s)",(user['id'],invitation_id,t['hackathon_id']))
             await activity(c,t['id'],user['id'],'member_joined')

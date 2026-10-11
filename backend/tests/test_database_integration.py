@@ -110,3 +110,30 @@ def test_simultaneous_invitation_acceptance(client):
     with ThreadPoolExecutor(max_workers=2) as executor:results=list(executor.map(accept,invitations))
     assert sorted(results)==[200,409]
     assert len(request(client,'get','/teams/'+tid,user=1).json()['members'])==2
+def test_telegram_duplicate_and_edit_review(client,monkeypatch):
+    s=settings();monkeypatch.setattr(s,'telegram_channel_id','-100123456');monkeypatch.setattr(s,'telegram_webhook_secret','synthetic-webhook-secret')
+    source=request(client,'post','/admin/sources',json={'name':'Synthetic authorized channel','kind':'telegram','reference':'telegram:-100123456','authorized':True});assert source.status_code==200
+    post={'channel_post':{'chat':{'id':-100123456},'message_id':71,'text':'Synthetic owner announcement'}}
+    headers={'X-Telegram-Bot-Api-Secret-Token':'synthetic-webhook-secret'}
+    first=client.post('/api/v1/integrations/telegram',json=post,headers=headers);assert first.status_code==200,first.text
+    duplicate=client.post('/api/v1/integrations/telegram',json=post,headers=headers);assert duplicate.status_code==200 and duplicate.json()['duplicate'] is True
+    edited={'edited_channel_post':{**post['channel_post'],'text':'Edited synthetic owner announcement'}}
+    changed=client.post('/api/v1/integrations/telegram',json=edited,headers=headers);assert changed.status_code==200 and changed.json()['id']==first.json()['id']
+    wrong=client.post('/api/v1/integrations/telegram',json={'channel_post':{'chat':{'id':-100999},'message_id':1}},headers=headers);assert wrong.status_code==403
+
+def test_71_synthetic_students_import(client):
+    content=('Name,Email,Skills\n'+''.join(f'Synthetic Student {i},synthetic71-{i}@example.com,Python\n' for i in range(71))).encode()
+    files={'file':('synthetic-71.csv',content,'text/csv')}
+    preview=request(client,'post','/admin/import/preview',files=files);assert preview.status_code==200 and len(preview.json()['valid'])==71
+    assert preview.json()['valid'][0]['skills'][0]['proficiency'] is None
+    committed=request(client,'post','/admin/import/commit',files=files,data={'authorized':'true'});assert committed.status_code==200 and committed.json()['successful']==71
+    assert query_in_app(client,'SELECT count(*) AS n FROM imported_students WHERE claimed_by IS NULL')[0]['n']>=71
+
+def test_profile_claim_without_invented_proficiency(client):
+    request(client,'put','/me',user=3,json={'display_name':'Synthetic Builder 3','country':'India','onboarding_complete':False})
+    content=b'Name,Email,Skills\nSynthetic Claim,fixture3@example.com,Python\n'
+    result=request(client,'post','/admin/import/commit',files={'file':('claim.csv',content,'text/csv')},data={'authorized':'true'});assert result.status_code==200
+    claimed=request(client,'post','/me/claim-import',user=3);assert claimed.status_code==200,claimed.text
+    assert claimed.json()['skills'][0]['proficiency'] is None
+    assert claimed.json()['discoverable'] is False
+    assert request(client,'post','/me/claim-import',user=3).status_code==409

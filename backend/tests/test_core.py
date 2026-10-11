@@ -88,3 +88,29 @@ async def test_grok_rejects_malformed_output(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient,'post',post)
     with pytest.raises(HTTPException) as exc:await GrokProvider().generate('plan',{})
     assert exc.value.status_code==503
+@pytest.mark.asyncio
+async def test_invalid_auth_token_rejected(monkeypatch):
+    import httpx
+    from app.auth import current_user
+    from app.config import settings
+    from fastapi.security import HTTPAuthorizationCredentials
+    s=settings();monkeypatch.setattr(s,'supabase_url','https://fixture.supabase.co');monkeypatch.setattr(s,'supabase_anon_key','test-only')
+    async def get(*a,**kw):return httpx.Response(401,json={'message':'Invalid token'},request=httpx.Request('GET','https://fixture.supabase.co/auth/v1/user'))
+    monkeypatch.setattr(httpx.AsyncClient,'get',get)
+    with pytest.raises(HTTPException) as exc:await current_user(HTTPAuthorizationCredentials(scheme='Bearer',credentials='test-only'))
+    assert exc.value.status_code==401
+@pytest.mark.asyncio
+async def test_unverified_email_rejected(monkeypatch):
+    import httpx
+    from app.auth import current_user
+    from app.config import settings
+    from fastapi.security import HTTPAuthorizationCredentials
+    s=settings();monkeypatch.setattr(s,'supabase_url','https://fixture.supabase.co');monkeypatch.setattr(s,'supabase_anon_key','test-only')
+    async def get(*a,**kw):return httpx.Response(200,json={'id':'00000000-0000-0000-0000-000000000001'},request=httpx.Request('GET','https://fixture.supabase.co/auth/v1/user'))
+    monkeypatch.setattr(httpx.AsyncClient,'get',get)
+    with pytest.raises(HTTPException) as exc:await current_user(HTTPAuthorizationCredentials(scheme='Bearer',credentials='test-only'))
+    assert exc.value.status_code==403
+
+def test_unknown_proficiency_not_invented():
+    result=recommend(profile(skills=[{'name':'Python','proficiency':None}]),event())
+    assert not result['matching_skills'] and result['components']['skills']==0

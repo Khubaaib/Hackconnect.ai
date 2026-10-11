@@ -26,6 +26,7 @@ class GrokProvider:
 async def copilot(user_id,team_id,prompt,context):
     key=hashlib.sha256(json.dumps([str(user_id),str(team_id),prompt,context],sort_keys=True,default=str).encode()).hexdigest()
     s=settings()
+    if not s.xai_api_key or not s.xai_model:raise HTTPException(503,'Grok is not configured. Core matching remains available.')
     async with connection() as c:
         cached=await one(c,'SELECT result FROM ai_cache WHERE key=%s AND expires_at>now()',(key,))
         if cached:return {**cached['result'],'cached':True}

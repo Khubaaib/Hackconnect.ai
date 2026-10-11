@@ -124,6 +124,11 @@ class Milestone(Strict):
     title:str=Field(min_length=1,max_length=200)
     completed:bool=False
     deadline:datetime|None=None
+    @field_validator('deadline')
+    @classmethod
+    def aware(cls,v):
+        if v and not v.tzinfo:raise ValueError('Deadline must include a time zone')
+        return v
 class Resource(Strict):
     title:str=Field(min_length=1,max_length=200)
     url:str
