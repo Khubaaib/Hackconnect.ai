@@ -1,46 +1,81 @@
-# HackConnect AI
+# HackConnect.AI
 
-**Find Your Hackathon. Build Your Dream Team.**
+**Find your hackathon. Build your dream team.**
 
-A hackathon discovery and collaboration platform with transparent skill matching, consent-based teammate discovery, transactional squad invitations, and persistent team workspaces.
+HackConnect.AI brings hackathon discovery, skill-based teammate recommendations, and team collaboration into one platform. Students can build a profile, explore reviewed opportunities, form a complementary squad, and manage their work together.
 
-> **Launch status:** implementation and local checks are in progress. This repository is not a verified live production deployment. Read [the task checklist](docs/PROGRESS.md), [test results](docs/VERIFICATION.md), and [launch requirements](docs/DEPLOYMENT.md) before enabling public access.
+**[Open the live application](https://hackconnect-ai.vercel.app/)** · **[Sign in](https://hackconnect-ai.vercel.app/auth)** · **[Report an issue](https://github.com/Khubaaib/Hackconnect.ai/issues)**
 
-## What is implemented
+Maintained by [Khubaaib Iqbal](https://github.com/Khubaaib).
 
-- Supabase email/password and Google sign-in flows, email verification, reset, protected app navigation, logout, and account deletion integration.
-- Six-step resumable onboarding with technical/nontechnical skills, custom skill normalization, proficiency, roles, interests, timezone-aware availability, privacy settings, and consent.
-- Administrator-only CSV/Excel preview, column mapping, validation, duplicate handling, transactional imports, safe re-imports, invitation emails, and verified-email profile claiming. Imported records stay private and undiscoverable.
-- Authorized Telegram webhook ingestion and export backfill; human-reviewed events retain provenance. Duplicate deliveries are idempotent; edited source posts return their event to review. Raw Telegram content is never sent to Grok.
-- Independent event and registration lifecycle states, stale-source exclusion, cancellation handling, bookmarks, feedback, searchable/filterable discovery, and configurable scheduled checks.
-- Transparent deterministic hackathon matching and complementary teammate ranking. A bounded team optimizer proposes a skill mix; it never silently confirms members.
-- Squad invitations, accept/decline, leader permissions, role assignment, leadership transfer, capacity enforcement, and one squad per user per hackathon.
-- Persistent member-only chat with pagination, read cursors, own-message edits/deletion, realtime updates and polling recovery; task board, comments, activity, milestones, resource links, and calculated progress.
-- Optional Grok planning with Pydantic output validation, timeouts, retries, token limits, per-user/platform daily request budgets, usage records, and one-hour caching. Saving suggested tasks requires explicit approval.
-- In-app notifications, user preferences, profile blocking, abuse reports, protected admin operations, and audit logs.
+## Project status
 
-## Stack and structure
+The application is hosted on Vercel, with a FastAPI backend on Render and PostgreSQL, authentication, and realtime services on Supabase. The live homepage was checked on October 12, 2026; this check does not establish that every authenticated workflow or external integration has passed end-to-end verification.
+
+Telegram ingestion currently queues channel announcements for administrator review. Automatic publication of hackathons from a selected Telegram channel is the next integration milestone and is not yet enabled. Grok planning requires a configured xAI key and model.
+
+See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](docs/DEPLOYMENT.md) for detailed validation requirements.
+
+## Features
+
+| Area | Capabilities |
+| --- | --- |
+| Student profiles | Resumable onboarding, technical and soft skills, interests, roles, availability, and privacy preferences |
+| Hackathon discovery | Search and filters, registration deadlines, event lifecycle states, bookmarks, and source provenance |
+| Team matching | Explainable skill-fit scores, complementary teammate ranking, and suggested squad composition |
+| Squad formation | Invitations, acceptance and decline, capacity checks, role assignment, and leadership transfer |
+| Team workspace | Persistent member-only chat, task boards, comments, milestones, resources, and progress tracking |
+| AI assistance | Optional Grok planning and architecture suggestions with structured output validation and usage limits |
+| Administration | CSV/Excel import previews, duplicate handling, private profile claims, event review, moderation, and audit logs |
+| Telegram ingestion | Authorized channel webhooks, duplicate-delivery handling, edited-post review, and export backfill |
+
+Recommendations do not automatically enroll students in a team. Members accept invitations, and AI-generated tasks are reviewed before they are saved.
+
+## How it works
+
+1. **Create a profile.** Add your skills, preferred roles, interests, and availability.
+2. **Explore an opportunity.** Review the hackathon requirements, deadlines, and source.
+3. **Find complementary teammates.** Inspect the reasons behind recommendations and send invitations.
+4. **Build together.** Coordinate through the squad chat, tasks, resources, and milestones.
+
+Imported student records remain private until the student verifies the matching email and claims their profile.
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js App Router, React, TypeScript, responsive CSS, Lucide icons |
+| Backend | Python, FastAPI, Pydantic, psycopg, HTTPX |
+| Database | PostgreSQL on Supabase, explicit SQL transactions, constraints, row-level security |
+| Authentication and realtime | Supabase Auth and Realtime |
+| AI provider | xAI / Grok, optional |
+| Event integration | Telegram Bot API webhooks |
+| Hosting | Vercel frontend, Render backend |
+| Quality checks | pytest, PostgreSQL integration tests, Playwright, GitHub Actions |
+
+## Repository structure
 
 ```text
-frontend/                  Next.js App Router, TypeScript, React, Supabase JS
-  app/                     Landing, auth, onboarding, discovery, squad and admin routes
-  components/              Shared navigation, fields, loading/error/empty states
-  lib/                     API client and Supabase client
-  tests/                   Playwright public regression and opt-in staging journey
-backend/                   FastAPI, Pydantic, psycopg, HTTPX, openpyxl
-  app/                     API, auth, schemas, matching, importer, Grok, worker, migration
-  tests/                   Unit, API guard, database journey, RLS and race tests
-database/001_initial.sql   Versioned PostgreSQL schema, indexes, constraints and RLS
-fixtures/                  Clearly labeled synthetic development records
-docs/                      Architecture, algorithm, API, integration and deployment guides
-.github/workflows/ci.yml   PostgreSQL-backed backend and browser/build CI
+frontend/                  Web application and browser tests
+backend/
+  app/                     API, authentication, matching, imports, AI, and worker
+  tests/                   Unit, API, and database integration tests
+database/
+  001_initial.sql          Initial schema, constraints, indexes, and RLS
+  002_imported_student_roll_number.sql
+                           Additive roll-number field migration
+  tests/                   Isolated test database bootstrap
+fixtures/                  Synthetic development data
+docs/                      Architecture, API, integrations, security, and deployment
+.github/workflows/         Continuous integration
+render.yaml                Backend hosting configuration
 ```
 
-The backend uses explicit SQL and psycopg transactions rather than an ORM. Styling is responsive CSS with Lucide icons; Tailwind/shadcn were recommended in the brief, but are not dependencies. This keeps the initial implementation smaller while retaining the requested App Router and Python architecture.
+## Run locally
 
-## Quick start — Windows PowerShell
+Prerequisites: Python 3.12+, Node.js 22+, and a Supabase project.
 
-Requires Python 3.12+, Node.js 22+, and your own Supabase project.
+### 1. Clone and configure
 
 ```powershell
 git clone https://github.com/Khubaaib/Hackconnect.ai.git
@@ -51,7 +86,11 @@ Copy-Item backend\.env.example backend\.env
 Copy-Item frontend\.env.example frontend\.env.local
 ```
 
-Fill the environment files. Never put service-role, database, Telegram, scheduler, or Grok secrets in `NEXT_PUBLIC_*` variables. Apply `database/001_initial.sql` once in Supabase SQL Editor, or run the migration command with a configured database connection.
+Fill the environment files using your own service configuration. Keep database, service-role, Telegram, scheduler, and xAI credentials on the backend. Only the intended public frontend configuration belongs in `NEXT_PUBLIC_*` variables.
+
+### 2. Initialize the database and start the backend
+
+Apply `database/001_initial.sql` once in Supabase SQL Editor, or run the initial migration command below. Apply `database/002_imported_student_roll_number.sql` separately in SQL Editor for the optional roll-number field; the current migration runner handles the initial schema only.
 
 ```powershell
 cd backend
@@ -59,19 +98,26 @@ cd backend
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-In another terminal:
+### 3. Start the frontend
+
+In a second terminal, from the repository root:
 
 ```powershell
-cd Hackconnect.ai\frontend
+cd frontend
 npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. API documentation is at `http://localhost:8000/docs`. `/health` is process liveness; `/ready` checks schema and authentication configuration.
+- Application: `http://localhost:3000`
+- API documentation: `http://localhost:8000/docs`
+- Liveness: `/health`
+- Readiness: `/ready`
 
-Configure Supabase Auth email verification, your Site URL, redirect allowlist for `/auth/callback`, Google OAuth if needed, and an email provider before testing the real registration journey. Register your own account first, then assign admin privileges with the SQL in [deployment instructions](docs/DEPLOYMENT.md). Never allow a browser to self-assign an admin role.
+Configure the Supabase Auth site URL and callback allowlist before testing registration. See [integration setup](docs/INTEGRATIONS.md) for email delivery, OAuth, Telegram, and Grok configuration.
 
-## Tests
+## Validation
+
+From the repository root:
 
 ```powershell
 cd backend
@@ -83,27 +129,35 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Database tests require an isolated PostgreSQL test database, the test-only bootstrap and the migration. The CI workflow creates it automatically. **Never run `database/tests/bootstrap.sql` against your real Supabase project.**
+Database integration tests require an isolated test database. The CI workflow provisions that environment. Never apply `database/tests/bootstrap.sql` to a production Supabase project.
 
-The staging Playwright journey is opt-in via `TEST_BASE_URL`, `LIVE_USER_EMAIL`, `LIVE_USER_PASSWORD`, and `LIVE_EVENT_ID`. It creates real test data; use a dedicated staging account and hackathon. Browser smoke tests do not substitute for live Supabase, Telegram, Grok, email, and hosting verification.
+The opt-in staging browser journey uses `TEST_BASE_URL`, `LIVE_USER_EMAIL`, `LIVE_USER_PASSWORD`, and `LIVE_EVENT_ID`. Use dedicated test accounts and events because it creates data.
 
 ## Deployment
 
-Frontend: Vercel with root directory `frontend`. Backend: Render Docker service using `render.yaml`, or equivalent Railway deployment. Database/auth/realtime: Supabase. Run `python -m app.worker` hourly using a managed scheduler. Set separate staging/production environments; complete the [deployment checklist](docs/DEPLOYMENT.md).
+- **Vercel:** use `frontend` as the project root and configure the public API origin and Supabase client settings.
+- **Render:** use `backend/Dockerfile` with the repository root as the build context; keep server secrets in environment variables.
+- **Supabase:** apply the schema migrations and configure authentication, callback URLs, and realtime.
+- **Scheduled checks:** run `python -m app.worker` through a managed scheduler.
 
-There is no payment integration and no fake event or student dataset presented as real. The actual 71-student dataset, Telegram ownership/configuration, Grok key/model, Supabase project, and hosting accounts must be supplied and verified before launch.
+Detailed instructions are in [Deployment](docs/DEPLOYMENT.md). Hosting the frontend and backend is separate from publishing source code to GitHub.
 
-## Design and safety notes
+## Data and integration boundaries
 
-- Scores are profile-fit metrics, not probabilities of acceptance or team success.
-- Missing facts remain unknown. Imported skill proficiency stays unspecified until the student reviews it.
-- Supabase client roles can read only RLS-authorized rows; all application writes go through authorized FastAPI endpoints.
-- The API database credential is server-only and privileged. Compromise of this credential bypasses RLS; use a dedicated service account, secret rotation, access restrictions, and staging validation.
-- Current discovery bounds scans to 1,000 events and 500 candidates, and ideal-squad search to 15 candidates and four extra seats. These are explicit initial scale limits.
-- Existing squad communication is unaffected by profile blocking; blocking prevents discovery/invitations. Leave the squad or report abuse to revoke shared-room access.
-- Direct file upload to squad chat is not implemented; approved HTTPS resource links support file sharing.
-- Legal/operator contact, exact retention/backup periods, monitoring/alerts, and live launch verification remain operator setup items.
+- Student datasets, phone numbers, email lists, and production credentials must not be committed to this public repository.
+- Skill-fit scores explain matching criteria; they are not probabilities of winning or selection.
+- Core matching works without an AI provider. Grok is used for optional planning assistance.
+- Telegram announcements retain their source and currently require review before publication.
+- The imported-student roll-number field is database storage; automatic transfer to claimed profiles and a dedicated UI are not implemented.
+- Squad file sharing currently uses resource links rather than direct chat uploads.
 
 ## Documentation
 
-[Architecture](docs/ARCHITECTURE.md) · [Matching](docs/MATCHING.md) · [API](docs/API.md) · [Integrations](docs/INTEGRATIONS.md) · [Security](docs/SECURITY.md) · [Deployment](docs/DEPLOYMENT.md) · [Task checklist](docs/PROGRESS.md) · [Verification](docs/VERIFICATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Matching algorithms](docs/MATCHING.md)
+- [API reference](docs/API.md)
+- [Integration setup](docs/INTEGRATIONS.md)
+- [Security](docs/SECURITY.md)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Progress checklist](docs/PROGRESS.md)
+- [Verification notes](docs/VERIFICATION.md)
