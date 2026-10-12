@@ -1,12 +1,22 @@
+<div align="center">
+
 # HackConnect.AI
 
-**Find your hackathon. Build your dream team.**
+### Find your hackathon. Build your dream team.
 
-HackConnect.AI brings hackathon discovery, skill-based teammate recommendations, and team collaboration into one platform. Students can build a profile, explore reviewed opportunities, form a complementary squad, and manage their work together.
+A platform for students to discover channel announcements, find complementary teammates, and collaborate in squads.
 
-**[Open the live application](https://hackconnect-ai.vercel.app/)** · **[Sign in](https://hackconnect-ai.vercel.app/auth)** · **[Report an issue](https://github.com/Khubaaib/Hackconnect.ai/issues)**
+[![Live application](https://img.shields.io/badge/Live_App-Open_HackConnect-2563EB?style=for-the-badge&logo=vercel&logoColor=white)](https://hackconnect-ai.vercel.app/)
+[![Continuous integration](https://github.com/Khubaaib/Hackconnect.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Khubaaib/Hackconnect.ai/actions/workflows/ci.yml)
+[![Maintainer](https://img.shields.io/badge/Maintainer-Khubaaib_Iqbal-181717?logo=github&logoColor=white)](https://github.com/Khubaaib)
 
-Maintained by [Khubaaib Iqbal](https://github.com/Khubaaib).
+**[Live app](https://hackconnect-ai.vercel.app/) · [Sign in](https://hackconnect-ai.vercel.app/auth) · [Documentation](#documentation) · [Report an issue](https://github.com/Khubaaib/Hackconnect.ai/issues)**
+
+</div>
+
+---
+
+HackConnect.AI brings hackathon discovery, explainable skill matching, and team collaboration into one workflow. Students build a profile, explore reviewed opportunities, form a complementary squad, and manage their work together.
 
 ## Project status
 
@@ -16,7 +26,7 @@ The discovery page displays original announcements from one configured Telegram 
 
 See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](docs/DEPLOYMENT.md) for detailed validation requirements.
 
-## Recent delivery — October 13, 2026
+## Latest release — October 13, 2026
 
 - Added discovery from the configured Telegram channel, preserving original text, source links, and attachment notices.
 - Added bounded synchronization, duplicate handling, recent edit/removal reconciliation, and safe session-format diagnostics.
@@ -30,6 +40,8 @@ The [frontend and backend CI run](https://github.com/Khubaaib/Hackconnect.ai/act
 Student registration, verified email claims, completed profiles, and discovery/invitation preferences are required before those students can participate in matching. Registration does not automatically create squads. An administrator must confirm a current event before its announcement exposes the squad workflow.
 
 ## Features
+
+From discovery to delivery, each step keeps event provenance and student privacy visible.
 
 | Area | Capabilities |
 | --- | --- |
@@ -54,6 +66,19 @@ Recommendations do not automatically enroll students in a team. Members accept i
 Imported student records remain private until the student verifies the matching email and claims their profile.
 
 ## Technology stack
+
+<p>
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-149ECA?style=for-the-badge&logo=react&logoColor=white" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=181818" alt="Supabase" />
+  <img src="https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+  <img src="https://img.shields.io/badge/Render-000000?style=for-the-badge&logo=render&logoColor=white" alt="Render" />
+</p>
 
 | Layer | Technology |
 | --- | --- |
@@ -180,3 +205,8 @@ Detailed instructions are in [Deployment](docs/DEPLOYMENT.md). Hosting the front
 - [Progress checklist](docs/PROGRESS.md)
 - [Verification notes](docs/VERIFICATION.md)
 
+## Maintainer
+
+Built and maintained by **[Khubaaib Iqbal](https://github.com/Khubaaib)**.
+
+Found a bug or have a feature idea? [Open an issue](https://github.com/Khubaaib/Hackconnect.ai/issues) with the steps to reproduce it and the expected behavior. Remove credentials and private student details from reports.
