@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     ai_platform_daily_requests: int = 200
     telegram_webhook_secret: str = ''
     telegram_channel_id: str = ''
+    telegram_api_id: int = 0
+    telegram_api_hash: str = ''
+    telegram_session_string: str = ''
+    telegram_sync_interval_seconds: int = 60
     job_secret: str = ''
     verification_max_age_days: int = 14
     max_import_rows: int = 1000
@@ -25,3 +29,4 @@ class Settings(BaseSettings):
                 raise RuntimeError('Production CORS origins must be explicit HTTPS origins')
 @lru_cache
 def settings(): return Settings()
+

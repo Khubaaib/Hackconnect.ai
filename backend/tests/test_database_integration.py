@@ -12,6 +12,33 @@ pytestmark=pytest.mark.skipif(not URL,reason='Set TEST_DATABASE_URL to an isolat
 IDS=['00000000-0000-0000-0000-00000000000'+str(i) for i in range(1,5)]
 def execute(sql,params=()):
     with psycopg.connect(URL,autocommit=True) as c:return c.execute(sql,params).fetchall() if sql.lstrip().upper().startswith('SELECT') else c.execute(sql,params)
+
+def test_telegram_feed_is_channel_scoped_and_excludes_removed_posts(client,monkeypatch):
+    channel='-1001111222333'
+    monkeypatch.setattr(settings(),'telegram_channel_id',channel)
+    with psycopg.connect(URL,autocommit=True) as c:
+        c.execute('DELETE FROM telegram_announcements WHERE channel_id IN (%s,%s)',(channel,'-1009999888777'))
+        for cid,mid,text,relevant,deleted in [
+            (channel,1,'Hackathon Alpha',True,False),
+            (channel,2,'Hackathon Beta',True,False),
+            (channel,3,'Removed hackathon',True,True),
+            (channel,4,'Ordinary conversation',False,False),
+            ('-1009999888777',1,'Other channel hackathon',True,False),
+        ]:
+            c.execute('''INSERT INTO telegram_announcements(channel_id,message_id,title,body,source_url,posted_at,relevant,deleted)
+                VALUES(%s,%s,%s,%s,%s,now(),%s,%s)''',(cid,mid,text,text,'https://t.me/c/1111222333/'+str(mid),relevant,deleted))
+    response=request(client,'get','/telegram/announcements?limit=1')
+    assert response.status_code==200
+    data=response.json()
+    assert data['total']==2 and len(data['items'])==1
+    assert data['items'][0]['title']=='Hackathon Beta'
+    assert request(client,'get','/telegram/announcements?offset=1&limit=1').json()['items'][0]['title']=='Hackathon Alpha'
+    assert request(client,'get','/telegram/announcements?q=Alpha').json()['total']==1
+    assert request(client,'get','/telegram/announcements?limit=51').status_code==422
+    with psycopg.connect(URL,autocommit=True) as c:
+        c.execute("SET ROLE authenticated")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            c.execute('SELECT * FROM telegram_announcements')
 @pytest.fixture(scope='module')
 def client():
     s=settings();old=s.database_url;s.database_url=URL
@@ -137,3 +164,4 @@ def test_profile_claim_without_invented_proficiency(client):
     assert claimed.json()['skills'][0]['proficiency'] is None
     assert claimed.json()['discoverable'] is False
     assert request(client,'post','/me/claim-import',user=3).status_code==409
+

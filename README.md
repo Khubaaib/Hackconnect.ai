@@ -12,7 +12,7 @@ Maintained by [Khubaaib Iqbal](https://github.com/Khubaaib).
 
 The application is hosted on Vercel, with a FastAPI backend on Render and PostgreSQL, authentication, and realtime services on Supabase. The live homepage was checked on October 12, 2026; this check does not establish that every authenticated workflow or external integration has passed end-to-end verification.
 
-Telegram ingestion currently queues channel announcements for administrator review. Automatic publication of hackathons from a selected Telegram channel is the next integration milestone and is not yet enabled. Grok planning requires a configured xAI key and model.
+The discovery page displays original announcements from one configured Telegram channel. The client reader imports recent posts and synchronizes new posts, edits, and recent removals. Live ingestion requires the operator’s saved Telegram session in the backend environment. Structured hackathon records still use the separate administrator-review pipeline. Grok planning requires a configured xAI key and model.
 
 See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](docs/DEPLOYMENT.md) for detailed validation requirements.
 
@@ -27,7 +27,7 @@ See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](do
 | Team workspace | Persistent member-only chat, task boards, comments, milestones, resources, and progress tracking |
 | AI assistance | Optional Grok planning and architecture suggestions with structured output validation and usage limits |
 | Administration | CSV/Excel import previews, duplicate handling, private profile claims, event review, moderation, and audit logs |
-| Telegram ingestion | Authorized channel webhooks, duplicate-delivery handling, edited-post review, and export backfill |
+| Telegram discovery | A single-channel announcement feed, read-only client synchronization, duplicate handling, source links, and attachment notices |
 
 Recommendations do not automatically enroll students in a team. Members accept invitations, and AI-generated tasks are reviewed before they are saved.
 
@@ -90,7 +90,7 @@ Fill the environment files using your own service configuration. Keep database, 
 
 ### 2. Initialize the database and start the backend
 
-Apply `database/001_initial.sql` once in Supabase SQL Editor, or run the initial migration command below. Apply `database/002_imported_student_roll_number.sql` separately in SQL Editor for the optional roll-number field; the current migration runner handles the initial schema only.
+Apply `database/001_initial.sql` once in Supabase SQL Editor, or run the initial migration command below. Apply `database/002_imported_student_roll_number.sql` and `database/003_telegram_feed.sql` separately in SQL Editor; the current migration runner handles the initial schema only.
 
 ```powershell
 cd backend
@@ -147,7 +147,10 @@ Detailed instructions are in [Deployment](docs/DEPLOYMENT.md). Hosting the front
 - Student datasets, phone numbers, email lists, and production credentials must not be committed to this public repository.
 - Skill-fit scores explain matching criteria; they are not probabilities of winning or selection.
 - Core matching works without an AI provider. Grok is used for optional planning assistance.
-- Telegram announcements retain their source and currently require review before publication.
+- Original Telegram announcements retain their source and appear in channel discovery without invented event metadata. Fully structured event records still require review.
+- Telegram posters and documents open through their original Telegram link. Text filtering is deterministic; image content is not analyzed.
+- Synchronization imports the latest 200 posts initially, drains new posts in batches of 200, and reconciles edits and removals in the latest 200 stored posts.
+- Polling runs while the web service is awake. A sleeping free hosting service needs scheduled wakeups or an always-on service for continuous updates.
 - The imported-student roll-number field is database storage; automatic transfer to claimed profiles and a dedicated UI are not implemented.
 - Squad file sharing currently uses resource links rather than direct chat uploads.
 
@@ -157,7 +160,9 @@ Detailed instructions are in [Deployment](docs/DEPLOYMENT.md). Hosting the front
 - [Matching algorithms](docs/MATCHING.md)
 - [API reference](docs/API.md)
 - [Integration setup](docs/INTEGRATIONS.md)
+- [Telegram client setup](docs/TELEGRAM_CLIENT_SETUP.md)
 - [Security](docs/SECURITY.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Progress checklist](docs/PROGRESS.md)
 - [Verification notes](docs/VERIFICATION.md)
+

@@ -1,4 +1,5 @@
-import json,logging,secrets,hashlib
+import asyncio,json,logging,secrets,hashlib
+from contextlib import suppress
 from contextlib import asynccontextmanager
 from datetime import datetime,timezone
 from uuid import UUID
@@ -15,12 +16,19 @@ from .matching import normalize_skill,lifecycle,actionable,recommend,rank_candid
 from .importer import inspect_import
 from .ai import copilot
 from .body_limit import BodyLimitMiddleware
+from . import telegram_client
 log=logging.getLogger('hackconnect')
 @asynccontextmanager
 async def lifespan(app):
     settings().validate_production();await db.open_pool()
-    yield
-    await db.close_pool()
+    telegram_task=asyncio.create_task(telegram_client.poll()) if telegram_client.configured() else None
+    try:
+        yield
+    finally:
+        if telegram_task:
+            telegram_task.cancel()
+            with suppress(asyncio.CancelledError):await telegram_task
+        await db.close_pool()
 app=FastAPI(title='HackConnect AI',version='1.0.0',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[x.strip() for x in settings().cors_origins.split(',')],allow_methods=['GET','POST','PUT','PATCH','DELETE'],allow_headers=['Authorization','Content-Type'],allow_credentials=False)
 app.add_middleware(BodyLimitMiddleware)
@@ -553,6 +561,25 @@ async def telegram(request:Request,x_telegram_bot_api_secret_token:str|None=Head
         row=await db.one(c,'INSERT INTO ingestion_events(source_id,reference,payload) VALUES(%s,%s,%s) ON CONFLICT(source_id,reference) DO UPDATE SET payload=excluded.payload,status=\'pending\',updated_at=now() RETURNING id',(source['id'],reference,Jsonb({'text':content[:20000],'source_reference':reference,'edited':bool(payload.get('edited_channel_post'))})))
         await c.execute("UPDATE hackathons SET verification_status='pending',quality_flags=array_append(quality_flags,'source_edited'),updated_at=now() WHERE source_id=%s AND source_reference=%s",(source['id'],reference))
         return {'queued':True,'id':row['id']}
+
+@app.get('/api/v1/telegram/announcements')
+async def telegram_feed(q:str='',offset:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=50),user=Depends(actor)):
+    s=settings()
+    channel_id=s.telegram_channel_id
+    if not channel_id:
+        return {'items':[],'total':0,'configured':False,'channel_title':'College hackathon channel','last_synced_at':None,'sync_status':'not_configured'}
+    async with db.connection() as c:
+        state=await db.one(c,'SELECT channel_title,last_success_at,last_error FROM telegram_sync_state WHERE channel_id=%s',(channel_id,))
+        term='%'+q[:200]+'%'
+        args=(channel_id,term,term)
+        where='channel_id=%s AND relevant=true AND deleted=false AND (body ILIKE %s OR title ILIKE %s)'
+        total=(await db.one(c,'SELECT count(*) AS n FROM telegram_announcements WHERE '+where,args))['n']
+        items=await db.all_rows(c,'SELECT message_id,title,body,source_url,posted_at,edited_at,has_media FROM telegram_announcements WHERE '+where+' ORDER BY posted_at DESC,message_id DESC LIMIT %s OFFSET %s',(*args,limit,offset))
+    return {'items':items,'total':total,'configured':telegram_client.configured(s),'channel_title':state['channel_title'] if state else 'College hackathon channel','last_synced_at':state['last_success_at'] if state else None,'sync_status':state['last_error'] if state and state['last_error'] else ('synced' if state and state['last_success_at'] else 'waiting')}
+
+@app.post('/api/v1/admin/telegram/sync')
+async def telegram_manual_sync(user=Depends(admin_user)):
+    return await telegram_client.sync_once()
 class Source(Strict):
     name:str=Field(min_length=1,max_length=200)
     kind:Literal['telegram','export','feed']
@@ -612,7 +639,8 @@ async def admin_sync(user=Depends(admin_user)):
 @app.post('/api/v1/jobs/checks')
 async def job_checks(x_job_secret:str|None=Header(None)):
     if not settings().job_secret or not secrets.compare_digest(x_job_secret or '',settings().job_secret):raise HTTPException(403,'Invalid job secret')
-    return await scheduled_checks()
+    result=await scheduled_checks()
+    return {**result,'telegram':await telegram_client.sync_once()}
 class MemberRole(Strict):
     assigned_role:str=Field(max_length=100)
     leader:bool=False
@@ -627,3 +655,4 @@ async def assign_role(team_id:UUID,member_id:UUID,body:MemberRole,user=Depends(a
             await c.execute('UPDATE teams SET leader_id=%s,ai_consent=false WHERE id=%s',(member_id,team_id))
         await activity(c,team_id,user['id'],'role_assigned',{'assigned_role':body.assigned_role})
     return {'saved':True}
+

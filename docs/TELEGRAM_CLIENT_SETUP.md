@@ -34,14 +34,38 @@ The file is ignored by Git. It grants account access and must remain private. On
 Windows computer, restrict file access to your Windows account. Never paste its contents
 or a screenshot into chat. Telegram Settings → Devices can revoke the saved authorization.
 
-## Deployment status
+## Server activation
 
-This helper prepares authorization only. It does **not** activate automatic ingestion
-or publication. The current production app still uses the bot webhook and admin-review
-pipeline described in [INTEGRATIONS.md](INTEGRATIONS.md).
+1. Apply `database/003_telegram_feed.sql` in the production Supabase SQL Editor.
+2. Open Render → the HackConnect.AI backend → Environment. Add the four values
+   from your local `.env.telegram` file, preserving every other existing setting.
+   Use `TELEGRAM_CHANNEL_ID=-1003919421009` for the channel verified in local setup.
+3. Save, rebuild, and deploy the backend. Never copy these values into Vercel or GitHub.
+4. After deployment, sign in and open Discover. The reader starts automatically
+   when all four values are present. The first run imports the latest 200 posts;
+   later runs drain new posts in batches of 200 and reconcile recent edits/removals.
 
-After local access is confirmed, the next implementation work is a single-channel
-server collector, bounded historical import, new/edited post synchronization,
-duplicate handling, and channel-only display with original post references.
-A session must be supplied through the server's private environment settings before
-that collector can be tested against the actual channel.
+The feed refreshes every minute while the browser page is open. The backend polls
+at least once a minute while its hosting service is awake. A free Render service
+may sleep: continuous delivery requires an always-on instance or a configured
+scheduler that calls the existing secret-protected jobs endpoint. No paid service
+is created automatically.
+
+Only the configured channel is displayed. Hackathon/project-competition text and
+photo/document announcements are included. Other plain conversation is filtered
+using deterministic keywords. Poster contents are not OCR-analyzed: students open
+the original Telegram attachment. Posting dates are not treated as event deadlines.
+
+Private-channel source links require channel membership. The app exposes saved
+announcements only to authenticated app users; database client roles cannot read
+the tables directly. Confirm that the operator has authority to redistribute
+channel announcements to that audience before activating the session.
+
+## Verification
+
+- `GET /api/v1/telegram/announcements` requires an authenticated account.
+- `POST /api/v1/admin/telegram/sync` requires an administrator.
+- `POST /api/v1/jobs/checks` uses the existing job secret and also syncs Telegram.
+- A healthy feed reports the actual channel title and last successful sync time.
+- Expired sessions do not erase saved announcements. Error responses never expose
+  Telegram sessions or raw RPC exceptions. Reauthorize locally when needed.

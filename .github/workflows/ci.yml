@@ -24,13 +24,15 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - name: Unit and API guards
         working-directory: backend
-        run: python -m pytest tests/test_core.py tests/test_api.py -q
+        run: python -m pytest tests/test_core.py tests/test_api.py tests/test_telegram.py -q
       - name: Initialize disposable database
         env:
           PGPASSWORD: test-only
         run: |
           psql -h localhost -U postgres -d hackconnect_test -v ON_ERROR_STOP=1 -f database/tests/bootstrap.sql
           psql -h localhost -U postgres -d hackconnect_test -v ON_ERROR_STOP=1 -f database/001_initial.sql
+          psql -h localhost -U postgres -d hackconnect_test -v ON_ERROR_STOP=1 -f database/002_imported_student_roll_number.sql
+          psql -h localhost -U postgres -d hackconnect_test -v ON_ERROR_STOP=1 -f database/003_telegram_feed.sql
       - name: Database journey, RLS, imports and concurrency
         working-directory: backend
         env:
@@ -39,6 +41,10 @@ jobs:
         run: python -m pytest tests/test_database_integration.py -q
   frontend:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://fixture.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: fixture-only-public-key
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
     defaults:
       run:
         working-directory: frontend
@@ -59,3 +65,4 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report
+
