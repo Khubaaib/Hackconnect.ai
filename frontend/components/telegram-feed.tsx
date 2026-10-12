@@ -25,7 +25,7 @@ export default function TelegramFeed(){
   <div className="filters"><input aria-label="Search channel announcements" placeholder="Search channel announcements…" value={query} onChange={e=>{setQuery(e.target.value);setOffset(0)}}/><button className="button secondary small" onClick={()=>setRefresh(x=>x+1)}>Refresh</button></div>
   <ErrorBox error={error}/>
   {feed?.last_synced_at&&<p className="small-text">Last updated: {date(feed.last_synced_at)}. Announcement dates below are posting dates; confirm event deadlines in the original post.</p>}
-  {feed?.sync_status&&['sync_failed','authorization_required','channel_access_required'].includes(feed.sync_status)&&<div className="notice">Channel updates are temporarily unavailable. Previously saved announcements remain below.</div>}
+  {feed?.sync_status&&['sync_failed','authorization_required','channel_access_required','invalid_session_format'].includes(feed.sync_status)&&<div className="notice">Channel updates are temporarily unavailable. Previously saved announcements remain below.</div>}
   {loading&&!feed?<Loading/>:feed?.items.length?<div className="cards">{feed.items.map(post=><article className="card" key={post.message_id}>
    <div className="card-top"><span className="tag">CHANNEL ANNOUNCEMENT</span>{post.edited_at&&<span className="small-text">Edited</span>}</div>
    <h3 style={{overflowWrap:'anywhere'}}>{post.title}</h3><p className="small-text">Posted: {date(post.posted_at)}</p>

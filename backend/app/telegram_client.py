@@ -2,6 +2,8 @@
 import asyncio
 import logging
 import re
+import binascii
+import struct
 from .config import settings
 from . import db
 
@@ -13,6 +15,23 @@ def configured(s=None):
     s = s or settings()
     return bool(s.telegram_api_id and s.telegram_api_hash and s.telegram_session_string
                 and re.fullmatch(r'-100\d+', s.telegram_channel_id))
+
+def parse_session(raw):
+    """Accept a copied dotenv value without exposing reusable account credentials."""
+    from telethon.sessions import StringSession
+    value=raw.strip().removeprefix('TELEGRAM_SESSION_STRING=').strip()
+    if len(value)>1 and value[0]==value[-1] and value[0] in ('\"', "'"):
+        value=value[1:-1]
+    value=re.sub(r'\s+','',value)
+    if len(value) not in (353,369) or not value.startswith('1'):
+        raise RuntimeError('invalid_session_format')
+    try:
+        session=StringSession(value)
+        if not session.auth_key:
+            raise RuntimeError('invalid_session_format')
+        return session
+    except (ValueError,struct.error,binascii.Error):
+        raise RuntimeError('invalid_session_format') from None
 
 def announcement(message, channel_id, username=None):
     """Preserve original text; never infer dates, prizes, or registration requirements."""
@@ -50,9 +69,8 @@ async def store_message(c, channel_id, message, username=None):
 
 async def _sync(s):
     from telethon import TelegramClient, utils
-    from telethon.sessions import StringSession
-    client = TelegramClient(StringSession(s.telegram_session_string), s.telegram_api_id,
-                            s.telegram_api_hash, receive_updates=False,
+    client = TelegramClient(parse_session(s.telegram_session_string), s.telegram_api_id,
+                            s.telegram_api_hash.strip(), receive_updates=False,
                             request_retries=2, connection_retries=2, flood_sleep_threshold=0)
     async with db.connection() as c:
         lock = await db.one(c, 'SELECT pg_try_advisory_xact_lock(3919421009) AS acquired')
@@ -116,7 +134,7 @@ async def sync_once():
         except Exception as exc:
             # Never emit RPC payloads, credentials, session strings, or raw posts.
             code = 'sync_failed'
-            if isinstance(exc, RuntimeError) and str(exc) in ('authorization_required', 'channel_access_required'):
+            if isinstance(exc, RuntimeError) and str(exc) in ('authorization_required', 'channel_access_required', 'invalid_session_format'):
                 code = str(exc)
             log.warning('telegram_sync_failed type=%s', type(exc).__name__)
             try:

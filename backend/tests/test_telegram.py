@@ -7,6 +7,30 @@ from app import telegram_client as tg
 from app.main import app
 
 CHANNEL='-1003919421009'
+def synthetic_session():
+    from telethon.sessions import StringSession
+    from telethon.crypto import AuthKey
+    session=StringSession()
+    session.set_dc(2,'149.154.167.50',443)
+    session.auth_key=AuthKey(bytes(range(256)))
+    return session.save()
+
+def test_session_copy_whitespace_quotes_and_dotenv_prefix_are_normalized():
+    value=synthetic_session()
+    for copied in (value,' '+value+'\n','"'+value+'"','TELEGRAM_SESSION_STRING='+value,value[:50]+'\n'+value[50:]):
+        assert tg.parse_session(copied).save()==value
+
+def test_truncated_session_has_a_safe_actionable_error():
+    with pytest.raises(RuntimeError,match='^invalid_session_format$'):
+        tg.parse_session(synthetic_session()[:90])
+
+@pytest.mark.asyncio
+async def test_invalid_session_status_is_specific_without_secret_disclosure(monkeypatch):
+    monkeypatch.setattr(tg,'configured',lambda s=None:True)
+    async def fail(s):raise RuntimeError('invalid_session_format')
+    monkeypatch.setattr(tg,'_sync',fail)
+    assert await tg.sync_once()=={'status':'invalid_session_format'}
+
 def message(body='',media=False,message_id=12):
     return SimpleNamespace(id=message_id,message=body,date=datetime.now(timezone.utc),
                            edit_date=None,photo=object() if media else None,document=None)
