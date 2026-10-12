@@ -468,7 +468,7 @@ async def admin_overview(user=Depends(admin_user)):
         for table in ['user_profiles','hackathons','teams','imported_students','abuse_reports']:
             stats[table]=(await db.one(c,f'SELECT count(*) AS n FROM {table}'))['n']
         stats['ai_usage']=await db.one(c,"SELECT count(*) AS requests,coalesce(sum(input_tokens),0) AS input_tokens,coalesce(sum(output_tokens),0) AS output_tokens FROM ai_usage WHERE created_at>=date_trunc('day',now())")
-        stats['integrations']={'telegram_configured':bool(settings().telegram_channel_id and settings().telegram_webhook_secret),'grok_configured':bool(settings().xai_api_key and settings().xai_model)}
+        stats['integrations']={'telegram_configured':telegram_client.configured() or bool(settings().telegram_channel_id and settings().telegram_webhook_secret),'grok_configured':bool(settings().xai_api_key and settings().xai_model)}
         return stats
 @app.get('/api/v1/admin/hackathons')
 async def admin_events(user=Depends(admin_user)):
@@ -575,6 +575,15 @@ async def telegram_feed(q:str='',offset:int=Query(0,ge=0),limit:int=Query(20,ge=
         where='channel_id=%s AND relevant=true AND deleted=false AND (body ILIKE %s OR title ILIKE %s)'
         total=(await db.one(c,'SELECT count(*) AS n FROM telegram_announcements WHERE '+where,args))['n']
         items=await db.all_rows(c,'SELECT message_id,title,body,source_url,posted_at,edited_at,has_media FROM telegram_announcements WHERE '+where+' ORDER BY posted_at DESC,message_id DESC LIMIT %s OFFSET %s',(*args,limit,offset))
+        linked=await db.all_rows(c,"""SELECT h.id,h.source_reference,h.title FROM hackathons h
+            JOIN hackathon_sources s ON s.id=h.source_id WHERE s.reference=%s AND s.authorized
+            AND h.verification_status='verified' AND NOT h.cancelled AND NOT h.registration_closed
+            AND h.registration_deadline>now() AND h.last_verified_at>now()-(%s*interval '1 day')""",('telegram:'+channel_id,s.verification_max_age_days))
+        by_reference={row['source_reference']:row for row in linked}
+        for item in items:
+            event=by_reference.get(str(item['message_id']))
+            item['event_id']=event['id'] if event else None
+            item['event_title']=event['title'] if event else None
     return {'items':items,'total':total,'configured':telegram_client.configured(s),'channel_title':state['channel_title'] if state else 'College hackathon channel','last_synced_at':state['last_success_at'] if state else None,'sync_status':state['last_error'] if state and state['last_error'] else ('synced' if state and state['last_success_at'] else 'waiting')}
 
 @app.post('/api/v1/admin/telegram/sync')
@@ -607,6 +616,7 @@ async def publish_ingestion(ingestion_id:UUID,body:Event,user=Depends(admin_user
     async with db.connection() as c:
         row=await db.one(c,'SELECT * FROM ingestion_events WHERE id=%s FOR UPDATE',(ingestion_id,))
         if not row:raise HTTPException(404,'Announcement not found')
+        if row['status']=='source_deleted':raise HTTPException(409,'The source post was removed. Review another announcement.')
         existing=await db.one(c,'SELECT id FROM hackathons WHERE source_id=%s AND source_reference=%s',(row['source_id'],row['reference']))
         event=await save_event(c,body,existing['id'] if existing else None,row['source_id'],row['reference'])
         await c.execute("UPDATE ingestion_events SET status='reviewed' WHERE id=%s",(ingestion_id,));await audit(c,user['id'],'announcement_reviewed',ingestion_id)

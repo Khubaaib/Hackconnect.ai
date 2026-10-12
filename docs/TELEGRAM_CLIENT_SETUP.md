@@ -69,3 +69,26 @@ channel announcements to that audience before activating the session.
 - A healthy feed reports the actual channel title and last successful sync time.
 - Expired sessions do not erase saved announcements. Error responses never expose
   Telegram sessions or raw RPC exceptions. Reauthorize locally when needed.
+
+## From announcements to squads
+
+The client queues relevant posts in Admin → ingestion. Repeated polling preserves
+reviewed events. Material edits return linked events to review; detected source
+removals cancel the linked event and hide its team-formation link.
+
+Open Review as event, confirm the title, official registration link, dates, team
+size, eligibility, and requirements, then choose Confirmed — enable team formation.
+Only reviewed events with current registration show Find teammates / build squad
+on their original Telegram announcement. Past deadlines and unknown dates never
+become active opportunities automatically.
+
+Students use their own verified email to claim imported skills, complete onboarding,
+and opt into discovery/invitations. They create a squad and invite recommended
+teammates; acceptance creates membership and access to private chat. Login alone
+does not create a squad.
+
+The operator account needs an explicitly assigned admin role. Never choose that
+account from a display name or give students an administrator role automatically.
+The complete announcement → review → complementary matching → invitation →
+acceptance → private chat workflow is exercised with disposable synthetic accounts
+in the database integration suite.

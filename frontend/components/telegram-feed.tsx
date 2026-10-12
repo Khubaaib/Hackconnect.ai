@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {api,date} from '@/lib/api';
 import {ErrorBox,Loading,Empty} from '@/components/ui';
 
-type Announcement={message_id:number;title:string;body:string;source_url:string;posted_at:string;edited_at:string|null;has_media:boolean};
+type Announcement={message_id:number;title:string;body:string;source_url:string;posted_at:string;edited_at:string|null;has_media:boolean;event_id?:string|null;event_title?:string|null};
 type Feed={items:Announcement[];total:number;configured:boolean;channel_title:string;last_synced_at:string|null;sync_status:string};
 
 export default function TelegramFeed(){
@@ -31,7 +31,8 @@ export default function TelegramFeed(){
    <h3 style={{overflowWrap:'anywhere'}}>{post.title}</h3><p className="small-text">Posted: {date(post.posted_at)}</p>
    {post.body&&<p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{post.body.length>1800?post.body.slice(0,1800)+'…':post.body}</p>}
    {post.has_media&&<p className="small-text">This post includes an attachment. Open Telegram to view the poster or file.</p>}
-   <div className="card-actions"><a className="button small" href={post.source_url} target="_blank" rel="noopener noreferrer">Open original post</a></div>
+   <div className="card-actions">{post.event_id&&<a className="button small" href={'/hackathons/'+post.event_id}>Find teammates / build squad</a>}<a className="button secondary small" href={post.source_url} target="_blank" rel="noopener noreferrer">Open original post</a></div>
+   {!post.event_id&&<p className="small-text">Team formation becomes available after the event dates and requirements are reviewed.</p>}
   </article>)}</div>:!error&&<Empty title={feed?.configured?'No announcements match this view':'Your channel connection is being set up'}><p>{feed?.configured?'New hackathon and project-competition posts will appear after the next channel update.':'Your administrator is completing the Telegram connection. You do not need to post announcements yourself.'}</p></Empty>}
   {feed&&feed.total>0&&<div className="pagination"><button className="button secondary small" disabled={offset===0||loading} onClick={()=>setOffset(Math.max(0,offset-20))}>Previous</button><span className="small-text">{feed.total} announcements</span><button className="button secondary small" disabled={offset+20>=feed.total||loading} onClick={()=>setOffset(offset+20)}>Next</button></div>}
  </section>;

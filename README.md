@@ -147,7 +147,7 @@ Detailed instructions are in [Deployment](docs/DEPLOYMENT.md). Hosting the front
 - Student datasets, phone numbers, email lists, and production credentials must not be committed to this public repository.
 - Skill-fit scores explain matching criteria; they are not probabilities of winning or selection.
 - Core matching works without an AI provider. Grok is used for optional planning assistance.
-- Original Telegram announcements retain their source and appear in channel discovery without invented event metadata. Fully structured event records still require review.
+- Original Telegram announcements retain their source and appear in channel discovery without invented event metadata. Structured event records use an administrator review form; reviewed open events link directly from their announcement to skill matching and squad creation.
 - Telegram posters and documents open through their original Telegram link. Text filtering is deterministic; image content is not analyzed.
 - Synchronization imports the latest 200 posts initially, drains new posts in batches of 200, and reconciles edits and removals in the latest 200 stored posts.
 - Polling runs while the web service is awake. A sleeping free hosting service needs scheduled wakeups or an always-on service for continuous updates.

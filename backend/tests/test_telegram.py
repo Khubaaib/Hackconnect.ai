@@ -67,12 +67,42 @@ def test_sync_requires_all_credentials_and_a_marked_channel_id():
     assert not tg.configured(s)
 
 @pytest.mark.asyncio
-async def test_upsert_is_scoped_to_selected_channel():
+async def test_upsert_is_scoped_to_selected_channel(monkeypatch):
+    monkeypatch.setattr(tg.db,'one',AsyncMock(return_value=None))
     c=SimpleNamespace(execute=AsyncMock())
     await tg.store_message(c,CHANNEL,message('Hackathon',message_id=33))
     sql,args=c.execute.call_args.args
     assert 'ON CONFLICT(channel_id,message_id)' in sql
     assert args[:2]==(CHANNEL,33)
+
+def test_named_event_uses_source_title_instead_of_generic_heading():
+    item=tg.announcement(message('HACKATHON ANNOUNCEMENT 🔹 Event Name: Fixture Challenge 🔹 Organized By: Fixture College'),CHANNEL)
+    assert item['title']=='Fixture Challenge'
+
+@pytest.mark.asyncio
+async def test_repeated_poll_preserves_reviewed_event(monkeypatch):
+    item=tg.announcement(message('Hackathon notice'),CHANNEL)
+    payload={'text':item['body'],'title':item['title'],'source_url':item['source_url'],'has_media':False,'edited_at':None}
+    monkeypatch.setattr(tg.db,'one',AsyncMock(side_effect=[{'id':'source'}, {'id':'review','payload':payload}]))
+    c=SimpleNamespace(execute=AsyncMock())
+    await tg.queue_for_review(c,CHANNEL,item)
+    c.execute.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_material_edit_returns_event_to_review(monkeypatch):
+    item=tg.announcement(message('Hackathon updated deadline'),CHANNEL)
+    monkeypatch.setattr(tg.db,'one',AsyncMock(side_effect=[{'id':'source'}, {'id':'review','payload':{'text':'old'}}]))
+    c=SimpleNamespace(execute=AsyncMock())
+    await tg.queue_for_review(c,CHANNEL,item)
+    assert c.execute.call_count==2
+    assert "verification_status='pending'" in c.execute.call_args.args[0]
+
+@pytest.mark.asyncio
+async def test_deleted_source_disables_team_formation(monkeypatch):
+    monkeypatch.setattr(tg.db,'one',AsyncMock(return_value={'id':'source'}))
+    c=SimpleNamespace(execute=AsyncMock())
+    await tg.remove_announcement(c,CHANNEL,12)
+    assert any('cancelled=true' in call.args[0] for call in c.execute.call_args_list)
 
 @pytest.mark.asyncio
 async def test_errors_never_expose_session_or_raw_exception(monkeypatch):

@@ -6,6 +6,7 @@ import binascii
 import struct
 from .config import settings
 from . import db
+from psycopg.types.json import Jsonb
 
 log = logging.getLogger('hackconnect.telegram')
 _sync_lock = asyncio.Lock()
@@ -41,6 +42,9 @@ def announcement(message, channel_id, username=None):
         return None  # Ignore service messages and empty entries.
     lines = [line.strip() for line in body.splitlines() if line.strip()]
     title = (lines[0][:180] if lines else 'Announcement attachment')
+    named=re.search(r'(?:Event Name|Hackathon Name)\s*:\s*(.*?)(?:[🔹🛠🏆🔗📍🌐]|\n|$)',body,re.I)
+    if named and named.group(1).strip():
+        title=named.group(1).strip()[:180]
     if username and re.fullmatch(r'[A-Za-z0-9_]+', username):
         source = f'https://t.me/{username}/{message.id}'
     else:
@@ -66,6 +70,34 @@ async def store_message(c, channel_id, message, username=None):
         relevant=excluded.relevant,deleted=false,synced_at=now()''',
         (channel_id, item['message_id'], item['title'], item['body'], item['source_url'],
          item['posted_at'], item['edited_at'], item['has_media'], item['relevant']))
+    await queue_for_review(c,channel_id,item)
+
+async def queue_for_review(c,channel_id,item):
+    source=await db.one(c,"SELECT id FROM hackathon_sources WHERE reference=%s AND authorized=true",('telegram:'+channel_id,))
+    if not source:
+        return
+    reference=str(item['message_id'])
+    previous=await db.one(c,'SELECT id,payload FROM ingestion_events WHERE source_id=%s AND reference=%s FOR UPDATE',(source['id'],reference))
+    if not item['relevant'] and not previous:
+        return
+    payload={'text':item['body'],'title':item['title'],'source_url':item['source_url'],
+             'has_media':item['has_media'],'edited_at':item['edited_at'].isoformat() if item['edited_at'] else None}
+    if previous and previous['payload']==payload:
+        return  # Repeated polling must preserve an administrator's review.
+    await c.execute("""INSERT INTO ingestion_events(source_id,reference,payload) VALUES(%s,%s,%s)
+        ON CONFLICT(source_id,reference) DO UPDATE SET payload=excluded.payload,status='pending',updated_at=now()""",
+        (source['id'],reference,Jsonb(payload)))
+    if previous:
+        await c.execute("""UPDATE hackathons SET verification_status='pending',updated_at=now(),
+            quality_flags=CASE WHEN 'source_edited'=ANY(quality_flags) THEN quality_flags ELSE array_append(quality_flags,'source_edited') END
+            WHERE source_id=%s AND source_reference=%s""",(source['id'],reference))
+
+async def remove_announcement(c,channel_id,message_id):
+    await c.execute('UPDATE telegram_announcements SET deleted=true,synced_at=now() WHERE channel_id=%s AND message_id=%s',(channel_id,message_id))
+    source=await db.one(c,'SELECT id FROM hackathon_sources WHERE reference=%s',('telegram:'+channel_id,))
+    if source:
+        await c.execute("UPDATE ingestion_events SET status='source_deleted',updated_at=now() WHERE source_id=%s AND reference=%s",(source['id'],str(message_id)))
+        await c.execute("UPDATE hackathons SET cancelled=true,verification_status='needs_correction',updated_at=now() WHERE source_id=%s AND source_reference=%s",(source['id'],str(message_id)))
 
 async def _sync(s):
     from telethon import TelegramClient, utils
@@ -89,6 +121,8 @@ async def _sync(s):
                     break
             if entity is None:
                 raise RuntimeError('channel_access_required')
+            await c.execute("""INSERT INTO hackathon_sources(name,kind,reference,authorized)
+                VALUES(%s,'telegram',%s,true) ON CONFLICT(reference) DO NOTHING""",(entity.title,'telegram:'+s.telegram_channel_id))
             previous = await db.one(c, '''SELECT greatest(
                 coalesce((SELECT max(message_id) FROM telegram_announcements WHERE channel_id=%s),0),
                 coalesce((SELECT newest_message_id FROM telegram_sync_state WHERE channel_id=%s),0)) AS newest''', (s.telegram_channel_id,s.telegram_channel_id))
@@ -108,7 +142,7 @@ async def _sync(s):
                 messages = await client.get_messages(entity, ids=ids)
                 for expected_id, message in zip(ids, messages):
                     if message is None or not getattr(message, 'date', None):
-                        await c.execute('UPDATE telegram_announcements SET deleted=true,synced_at=now() WHERE channel_id=%s AND message_id=%s', (s.telegram_channel_id, expected_id))
+                        await remove_announcement(c,s.telegram_channel_id,expected_id)
                     else:
                         await store_message(c, s.telegram_channel_id, message, getattr(entity, 'username', None))
             await c.execute('''INSERT INTO telegram_sync_state(channel_id,channel_title,last_success_at,newest_message_id)

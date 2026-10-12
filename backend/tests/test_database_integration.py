@@ -165,3 +165,52 @@ def test_profile_claim_without_invented_proficiency(client):
     assert claimed.json()['discoverable'] is False
     assert request(client,'post','/me/claim-import',user=3).status_code==409
 
+def test_telegram_review_to_matched_squad_and_private_chat(client,monkeypatch):
+    """Entire bridge uses disposable accounts and records, never actual student emails."""
+    from datetime import datetime,timezone,timedelta
+    from types import SimpleNamespace
+    from app.telegram_client import store_message,remove_announcement
+    from app import db
+    channel='-100333222111'
+    monkeypatch.setattr(settings(),'telegram_channel_id',channel)
+    now=datetime.now(timezone.utc)
+    source=request(client,'post','/admin/sources',json={'name':'SYNTHETIC bridge channel','kind':'telegram','reference':'telegram:'+channel,'authorized':True})
+    assert source.status_code==200,source.text
+    post=SimpleNamespace(id=101,message='Event Name: SYNTHETIC bridge hackathon\nPython and React required.',date=now,edit_date=None,photo=None,document=None)
+    async def ingest():
+        async with db.connection() as c:await store_message(c,channel,post)
+    client.portal.call(ingest)
+    rows=query_in_app(client,'SELECT id FROM ingestion_events WHERE source_id=%s AND reference=%s',(source.json()['id'],'101'))
+    ingestion_id=str(rows[0]['id'])
+    assert request(client,'get','/telegram/announcements').json()['items'][0]['event_id'] is None
+    event={'title':'SYNTHETIC bridge hackathon','description':'Fixture only','registration_url':'https://example.com/telegram-bridge-register','source_url':'https://t.me/c/333222111/101','starts_at':(now+timedelta(days=30)).isoformat(),'ends_at':(now+timedelta(days=31)).isoformat(),'registration_deadline':(now+timedelta(days=29)).isoformat(),'verification_status':'verified','requirements':[{'name':'Python','proficiency':2},{'name':'React','proficiency':2}]}
+    published=request(client,'post',f'/admin/ingestion/{ingestion_id}/publish',json=event)
+    assert published.status_code==200,published.text
+    eid=published.json()['id']
+    assert request(client,'get','/telegram/announcements').json()['items'][0]['event_id']==eid
+    client.portal.call(ingest)
+    assert request(client,'get','/hackathons/'+eid).json()['verification_status']=='verified'
+    for index,skill in [(0,'Python'),(1,'React')]:
+        profile={'display_name':'Synthetic bridge builder '+str(index),'country':'India','onboarding_complete':True,'discoverable':True,'contact_consent':True,'open_to_invitations':True,'skills':[{'name':skill,'proficiency':2}]}
+        assert request(client,'put','/me',user=index,json=profile).status_code==200
+    candidates=request(client,'get',f'/hackathons/{eid}/teammates').json()['items']
+    assert any(c['profile']['id']==IDS[1] and 'react' in c['contributed_skills'] for c in candidates)
+    team=request(client,'post','/teams',json={'name':'Synthetic bridge squad','hackathon_id':eid})
+    assert team.status_code==201,team.text
+    tid=team.json()['id']
+    invitation=request(client,'post',f'/teams/{tid}/invitations',json={'recipient_id':IDS[1]})
+    assert invitation.status_code==201,invitation.text
+    assert request(client,'patch','/invitations/'+invitation.json()['id'],user=1,json={'decision':'accepted'}).status_code==200
+    assert request(client,'post',f'/teams/{tid}/messages',user=1,json={'body':'Bridge workflow checked'}).status_code==201
+    assert request(client,'get',f'/teams/{tid}/messages').json()[0]['body']=='Bridge workflow checked'
+    assert request(client,'get',f'/teams/{tid}/messages',user=3).status_code==403
+    post.message='Event Name: SYNTHETIC bridge hackathon\nRegistration deadline changed.'
+    client.portal.call(ingest)
+    assert request(client,'get','/telegram/announcements').json()['items'][0]['event_id'] is None
+    assert request(client,'get',f'/hackathons/{eid}/teammates').status_code==409
+    async def remove():
+        async with db.connection() as c:await remove_announcement(c,channel,101)
+    client.portal.call(remove)
+    assert request(client,'get','/telegram/announcements').json()['items']==[]
+    assert request(client,'post',f'/admin/ingestion/{ingestion_id}/publish',json=event).status_code==409
+
