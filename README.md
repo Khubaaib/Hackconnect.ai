@@ -10,11 +10,24 @@ Maintained by [Khubaaib Iqbal](https://github.com/Khubaaib).
 
 ## Project status
 
-The application is hosted on Vercel, with a FastAPI backend on Render and PostgreSQL, authentication, and realtime services on Supabase. The live homepage was checked on October 12, 2026; this check does not establish that every authenticated workflow or external integration has passed end-to-end verification.
+The application is hosted on Vercel, with a FastAPI backend on Render and PostgreSQL, authentication, and realtime services on Supabase. The Telegram collector, backend health endpoints, and deployed administrator review form were checked on October 13, 2026 (IST). Automated tests cover the review-to-squad workflow using synthetic accounts; real student onboarding remains pending.
 
-The discovery page displays original announcements from one configured Telegram channel. The client reader imports recent posts and synchronizes new posts, edits, and recent removals. Live ingestion requires the operator’s saved Telegram session in the backend environment. Structured hackathon records still use the separate administrator-review pipeline. Grok planning requires a configured xAI key and model.
+The discovery page displays original announcements from one configured Telegram channel. The client reader imports recent posts and synchronizes new posts, edits, and recent removals. Live ingestion requires the operator’s saved Telegram session in the backend environment. Relevant posts are queued for administrator review. Verified, open events with confirmed dates link directly to teammate matching and squad creation. Grok planning requires a configured xAI key and model.
 
 See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](docs/DEPLOYMENT.md) for detailed validation requirements.
+
+## Recent delivery — October 13, 2026
+
+- Added discovery from the configured Telegram channel, preserving original text, source links, and attachment notices.
+- Added bounded synchronization, duplicate handling, recent edit/removal reconciliation, and safe session-format diagnostics.
+- Connected announcements to an administrator review form with registration links, event dates, eligibility, team limits, and skill requirements.
+- Linked reviewed, verified, open events to complementary teammate matching and squad creation. Material source edits require review again; removed sources disable the event.
+- Validated matching, invitation acceptance, team capacity, and private squad chat using synthetic accounts and an isolated database.
+- Completed operator admin setup in the production database. Admin assignments are operational database changes, not hardcoded identities in source control.
+
+The [frontend and backend CI run](https://github.com/Khubaaib/Hackconnect.ai/actions/runs/38296507002) passed, including database integration and desktop/mobile browser checks. The core/API/Telegram test selection also passed locally (67 tests), along with frontend type checking and a production build.
+
+Student registration, verified email claims, completed profiles, and discovery/invitation preferences are required before those students can participate in matching. Registration does not automatically create squads. An administrator must confirm a current event before its announcement exposes the squad workflow.
 
 ## Features
 
@@ -49,7 +62,7 @@ Imported student records remain private until the student verifies the matching 
 | Database | PostgreSQL on Supabase, explicit SQL transactions, constraints, row-level security |
 | Authentication and realtime | Supabase Auth and Realtime |
 | AI provider | xAI / Grok, optional |
-| Event integration | Telegram Bot API webhooks |
+| Event integration | Telethon / Telegram MTProto reader, plus optional Bot API webhooks |
 | Hosting | Vercel frontend, Render backend |
 | Quality checks | pytest, PostgreSQL integration tests, Playwright, GitHub Actions |
 
@@ -64,6 +77,7 @@ database/
   001_initial.sql          Initial schema, constraints, indexes, and RLS
   002_imported_student_roll_number.sql
                            Additive roll-number field migration
+  003_telegram_feed.sql     Private announcement storage and synchronization state
   tests/                   Isolated test database bootstrap
 fixtures/                  Synthetic development data
 docs/                      Architecture, API, integrations, security, and deployment
@@ -121,7 +135,7 @@ From the repository root:
 
 ```powershell
 cd backend
-..\.venv\Scripts\python.exe -m pytest tests/test_core.py tests/test_api.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_core.py tests/test_api.py tests/test_telegram.py -q
 cd ..\frontend
 npm run typecheck
 npm run build
@@ -136,7 +150,7 @@ The opt-in staging browser journey uses `TEST_BASE_URL`, `LIVE_USER_EMAIL`, `LIV
 ## Deployment
 
 - **Vercel:** use `frontend` as the project root and configure the public API origin and Supabase client settings.
-- **Render:** use `backend/Dockerfile` with the repository root as the build context; keep server secrets in environment variables.
+- **Render:** the live service uses native Python with `uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT`. `backend/Dockerfile` is also available as an alternative. Keep server secrets in environment variables.
 - **Supabase:** apply the schema migrations and configure authentication, callback URLs, and realtime.
 - **Scheduled checks:** run `python -m app.worker` through a managed scheduler.
 
