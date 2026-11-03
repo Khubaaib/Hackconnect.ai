@@ -38,7 +38,7 @@ The source code is hosted here on GitHub. The frontend runs on Vercel, the Pytho
 ### Show the records during a project demonstration
 
 1. Sign in to the live app using the existing administrator account and open **Admin**.
-2. Select **students** to show application profiles. Select **imported-students** to show uploaded records. These are separate datasets.
+2. Select **Registered students** to show application profiles. Select **Student records** to show uploaded records. These are separate datasets. The admin interface uses searchable tables, skill tags, status filters, and pagination; open **View details** for contact information and the complete skill list.
 3. To show the actual database, open https://supabase.com/dashboard in the project owner's account. Select the project used by the backend's `SUPABASE_URL`, open **Table Editor**, choose the `public` schema, and open the tables listed above. Do not create another project.
 4. Use **Authentication → Users** to explain the difference between login accounts and profile records.
 5. For a presentation without exposing individual student details, run these read-only counts in Supabase SQL Editor:
