@@ -111,3 +111,15 @@ async def test_provider_explains_config_failures_without_leaking_upstream(monkey
     with pytest.raises(HTTPException) as error:await GrokProvider().generate('test',{})
     assert expected in error.value.detail and 'SECRET' not in error.value.detail
     assert len(calls)==1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('upstream,category', [('Incorrect API key provided: SECRET','credential format'),('response_format is unsupported SECRET','structured output format'),('max_tokens unsupported SECRET','output token parameter'),('Insufficient credits SECRET','insufficient credits')])
+async def test_bad_request_diagnostic_categories_hide_raw_details(monkeypatch,upstream,category):
+    import httpx
+    from app.ai import GrokProvider
+    from app.config import settings
+    monkeypatch.setattr(settings(),'xai_api_key','test-only');monkeypatch.setattr(settings(),'xai_model','test-only')
+    async def post(*a,**kw):return httpx.Response(400,text=upstream,request=httpx.Request('POST','https://api.x.ai/v1/chat/completions'))
+    monkeypatch.setattr(httpx.AsyncClient,'post',post)
+    with pytest.raises(HTTPException) as error:await GrokProvider().generate('test',{})
+    assert category in error.value.detail and 'SECRET' not in error.value.detail

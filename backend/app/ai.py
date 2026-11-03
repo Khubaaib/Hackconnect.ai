@@ -21,6 +21,14 @@ class GrokProvider:
                     if r.status_code>=400:
                         # Never expose upstream response bodies: they may contain credentials or prompts.
                         reason='Check the configured xAI model and API access.'
+                        upstream=r.text.casefold()
+                        if r.status_code==400:
+                            if any(word in upstream for word in ('api key','api_key','apikey','authentication','authorization','credential')):reason='xAI rejected the API credential format. Check that XAI_API_KEY is a valid xAI API key.'
+                            elif any(word in upstream for word in ('credit','balance','payment','billing')):reason='The xAI account has insufficient credits. Add credits in the xAI console.'
+                            elif any(word in upstream for word in ('response_format','json_object','json_schema')):reason='xAI rejected the structured output format.'
+                            elif any(word in upstream for word in ('max_tokens','max_completion_tokens','max_output_tokens')):reason='xAI rejected the output token parameter.'
+                            elif 'model' in upstream:reason='xAI rejected the configured model. Check model access in the xAI console.'
+                            elif any(word in upstream for word in ('message','role','content','json')):reason='xAI rejected the request body format.'
                         if r.status_code==401:reason='The configured xAI API key was rejected. Update XAI_API_KEY in Render.'
                         elif r.status_code in (402,403):
                             upstream=r.text.casefold()
