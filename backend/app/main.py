@@ -222,7 +222,8 @@ async def teammates(event_id:UUID,team_id:UUID|None=None,ideal:bool=False,user=D
 
 @app.post('/api/v1/teammates/search')
 async def search_teammates(body:TeammateSearch,user=Depends(actor)):
-    # Read fresh data each time, including newly completed profiles. Do not send profiles to xAI.
+    # Directory disclosure includes operator-authorized imported names/skills only.
+    # Registered privacy preferences and invitation consent remain enforced.
     async with db.connection() as c:
         p=await get_profile(c,user['id'])
         if not p['onboarding_complete']:raise HTTPException(409,'Complete your profile before searching for teammates')
@@ -237,6 +238,21 @@ async def search_teammates(body:TeammateSearch,user=Depends(actor)):
         grouped={uid:[] for uid in ids}
         for skill in skills:grouped[skill['user_id']].append({k:v for k,v in skill.items() if k!='user_id'})
         for candidate in candidates:candidate['skills']=grouped[candidate['id']]
+        registered_count=len(candidates)
+        imported_total=(await db.one(c,'SELECT count(*) AS total FROM imported_students'))['total']
+        # A linked/registered student is represented only by their account. In particular,
+        # a private or blocked account must never reappear through its unclaimed import.
+        imports=await db.all_rows(c,"""SELECT i.id,i.display_name,i.institution,i.skills
+            FROM imported_students i WHERE i.claimed_by IS NULL AND lower(i.email)<>lower(%s)
+            AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE lower(u.email)=lower(i.email))
+            ORDER BY i.created_at DESC,i.id LIMIT 1001""",(user.get('email',''),))
+        bounded=bounded or len(candidates)+len(imports)>1000
+        imports=imports[:max(0,1000-len(candidates))]
+        for row in imports:
+            candidates.append({'id':'imported:'+str(row['id']),'display_name':row['display_name'],
+                'institution':row['institution'],'skills':row['skills'],'bio':'','roles':[],
+                'interests':[],'format':'any','experience':0,'visibility':{'institution':True},
+                '_imported_record':True})
     intent=None;notice='';mode='profile'
     if body.query.strip():
         mode='keyword'
@@ -248,9 +264,9 @@ async def search_teammates(body:TeammateSearch,user=Depends(actor)):
             except HTTPException as exc:
                 if exc.status_code not in (429,503):raise
                 notice='AI search is temporarily unavailable. Showing matches from profile keywords instead. '+str(exc.detail)
-    ranked=rank_teammates(p,candidates,body.query,intent)
+    ranked=rank_teammates(p,candidates,body.query,intent,allow_imported=True)
     for row in ranked:row['profile']=public_profile(row['profile'])
-    return {'items':ranked[body.offset:body.offset+body.limit],'total':len(ranked),'searchable_profiles':len(candidates),'mode':mode,'notice':notice,'criteria':{k:v for k,v in (intent or {}).items() if k!='cached'},'bounded':bounded,'score_label':'Profile relevance, not a probability of joining'}
+    return {'items':ranked[body.offset:body.offset+body.limit],'total':len(ranked),'searchable_profiles':len(candidates),'registered_profiles':registered_count,'imported_profiles':len(imports),'imported_records_total':imported_total,'mode':mode,'notice':notice,'criteria':{k:v for k,v in (intent or {}).items() if k!='cached'},'bounded':bounded,'score_label':'Profile relevance, not a probability of joining'}
 
 @app.post('/api/v1/teams',status_code=201)
 async def create_team(body:TeamCreate,user=Depends(actor)):

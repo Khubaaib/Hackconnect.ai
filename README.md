@@ -59,13 +59,13 @@ UNION ALL
 SELECT 'squads', count(*) FROM public.teams;
 ```
 
-Uploaded rows do not automatically become public teammates. Their owners must claim the matching imported record, complete onboarding, and enable discovery, contact consent, and invitations. The app also excludes the searching user and blocked profiles.
+Uploaded names, institutions, and skills appear in the signed-in teammate directory as **Imported — not registered**. Emails and roll numbers stay private. Invitations require registration, profile completion, and consent. Claimed records and records matching an existing login use the account’s privacy settings and appear only once; the app excludes the searching user and blocked profiles.
 
 **Verified status on November 4, 2026 (IST):** the teammate-search release is deployed. Live profile recommendations, skill keyword searches, and the no-results state were tested. The latest checks passed: 83 backend tests, 10 PostgreSQL integration tests, and 22 desktop/mobile browser tests; four credential-dependent staging tests were skipped. Grok-assisted search is implemented, but the last live xAI request returned HTTP 400 with a credential-related error. A valid `XAI_API_KEY` must be configured and verified before presenting Grok as operational. Keyword matching remains available during that failure.
 
 ## Teammate search repair
 
-Dashboard → **Teammates** searches active student profiles directly, without requiring an event first. Enable Grok to interpret requests such as “Find a Python and React teammate for an education project.” Results come from real opted-in profiles, with evidence and an explicit keyword fallback if AI is unavailable. The **Opportunities** tab restores reviewed hackathon recommendations alongside the Telegram feed. Imported records become searchable after their owner claims the record, completes onboarding, and enables discovery and invitations.
+Dashboard → **Teammates** searches active student profiles directly, without requiring an event first. Enable Grok to interpret requests such as “Find a Python and React teammate for an education project.” Results come from real opted-in profiles, with evidence and an explicit keyword fallback if AI is unavailable. The **Opportunities** tab restores reviewed hackathon recommendations alongside the Telegram feed. Imported names, institutions, and skills are also searchable with a registration-status label. Invitations require a registered account with discovery and invitation consent.
 
 ## Project status
 
@@ -86,7 +86,7 @@ See [verification notes](docs/VERIFICATION.md) and the [deployment checklist](do
 
 The [frontend and backend CI run](https://github.com/Khubaaib/Hackconnect.ai/actions/runs/38296507002) passed, including database integration and desktop/mobile browser checks. The core/API/Telegram test selection also passed locally (67 tests), along with frontend type checking and a production build.
 
-Student registration, verified email claims, completed profiles, and discovery/invitation preferences are required before those students can participate in matching. Registration does not automatically create squads. An administrator must confirm a current event before its announcement exposes the squad workflow.
+Registration, verified email claims, completed profiles, and discovery/invitation preferences are required before students can receive invitations and join squads. Imported records can appear in directory search before registration. Registration does not automatically create squads. An administrator must confirm a current event before its announcement exposes the squad workflow.
 
 ## Features
 
@@ -112,7 +112,7 @@ Recommendations do not automatically enroll students in a team. Members accept i
 3. **Find complementary teammates.** Inspect the reasons behind recommendations and send invitations.
 4. **Build together.** Coordinate through the squad chat, tasks, resources, and milestones.
 
-Imported student records remain private until the student verifies the matching email and claims their profile.
+Imported contact details and roll numbers remain private. Authorized imported names, institutions, and skills appear in signed-in directory search, with invitations disabled until registration and consent.
 
 ## Technology stack
 

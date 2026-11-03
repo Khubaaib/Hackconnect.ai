@@ -50,10 +50,13 @@ def search_client(monkeypatch):
             assert 'b.blocked_id=%s AND b.blocker_id=p.id' in sql
             return [{**candidate(OTHER,['React']), 'visibility':{'institution':True},'display_name':'React Builder','bio':'Builder','experience':0,'email':'private@example.com'}]
         if 'FROM user_skills' in sql:return [{'user_id':OTHER,'name':'React','category':'technical','proficiency':2}]
+        if 'FROM imported_students' in sql:return []
         raise AssertionError(sql)
     monkeypatch.setattr(main.db,'connection',connection)
     monkeypatch.setattr(main,'get_profile',get_profile)
     monkeypatch.setattr(main.db,'all_rows',rows)
+    async def one(c,sql,args=()):return {'total':0}
+    monkeypatch.setattr(main.db,'one',one)
     app.dependency_overrides[actor]=lambda:{'id':ME}
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -123,3 +126,13 @@ async def test_bad_request_diagnostic_categories_hide_raw_details(monkeypatch,up
     monkeypatch.setattr(httpx.AsyncClient,'post',post)
     with pytest.raises(HTTPException) as error:await GrokProvider().generate('test',{})
     assert category in error.value.detail and 'SECRET' not in error.value.detail
+
+
+def test_imported_directory_records_are_explicit_and_not_invitable():
+    imported={'id':'imported:fixture','display_name':'Imported Builder','skills':[{'name':'Python','proficiency':None}], '_imported_record':True}
+    assert rank_teammates(profile(),[imported],'Python')==[]
+    result=rank_teammates(profile(),[imported],'Python',allow_imported=True)
+    assert len(result)==1 and result[0]['source']=='imported' and result[0]['can_invite'] is False
+    assert result[0]['unknown_proficiency']==['Python']
+    assert rank_candidates(profile(),event(),[imported])==[]
+    assert rank_teammates(profile(),[imported],'Java',allow_imported=True)==[]

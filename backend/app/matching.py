@@ -104,8 +104,8 @@ def query_terms(query):
     stop={'i','a','an','the','for','and','or','with','who','can','is','in','to','me','my','need','find','want','looking','someone','teammate','teammates','student','students','build','project','using','help','please'}
     return {normalize_skill(w) for w in words if w not in stop}
 
-def rank_teammates(profile,candidates,query='',intent=None):
-    """Search actual opted-in profiles; unknown proficiency remains unknown."""
+def rank_teammates(profile,candidates,query='',intent=None,allow_imported=False):
+    """Rank registered profiles and, for directory search, authorized imported records."""
     intent=intent or {}
     requested={normalize_skill(s) for s in intent.get('skills',[])}
     roles={s.casefold() for s in intent.get('roles',[])}
@@ -114,7 +114,8 @@ def rank_teammates(profile,candidates,query='',intent=None):
     own={normalize_skill(s['name']) for s in profile.get('skills',[])}
     ranked=[]
     for c in candidates:
-        if str(c['id'])==str(profile['id']) or not all(c.get(k) for k in ('discoverable','contact_consent','open_to_invitations','onboarding_complete')):continue
+        imported=allow_imported and c.get('_imported_record') is True
+        if str(c['id'])==str(profile['id']) or (not imported and not all(c.get(k) for k in ('discoverable','contact_consent','open_to_invitations','onboarding_complete'))):continue
         skills={normalize_skill(s['name']) for s in c.get('skills',[])}
         c_roles={s.casefold() for s in c.get('roles',[])}
         c_interests={s.casefold() for s in c.get('interests',[])}
@@ -142,5 +143,5 @@ def rank_teammates(profile,candidates,query='',intent=None):
             score=round(100*(.6*len(additional)/max(len(skills),1)+.3*bool(shared)+.1*bool(c_roles-set(profile.get('roles',[])))))
             explanation=('Adds '+', '.join(sorted(additional))) if additional else 'Similar skills; discuss how to share the work'
             if shared:explanation+='; shared interests: '+', '.join(sorted(shared))
-        ranked.append({'profile':c,'score':score,'explanation':explanation,'matching_skills':sorted(matches),'additional_skills':sorted(skills-own),'unknown_proficiency':[s['name'] for s in c.get('skills',[]) if s.get('proficiency') is None]})
+        ranked.append({'profile':c,'source':'imported' if imported else 'registered','can_invite':not imported,'score':score,'explanation':explanation,'matching_skills':sorted(matches),'additional_skills':sorted(skills-own),'unknown_proficiency':[s['name'] for s in c.get('skills',[]) if s.get('proficiency') is None]})
     return sorted(ranked,key=lambda x:(-x['score'],str(x['profile']['id'])))

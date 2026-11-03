@@ -244,3 +244,34 @@ def test_profile_discovery_refresh_blocks_and_ai_budget(client,monkeypatch):
     assert execute("SELECT count(*) FROM ai_usage WHERE user_id=%s AND team_id IS NULL AND status='completed'",(IDS[0],))[0][0]>=1
     for row in r.json()['items']:
         assert 'email' not in row['profile'] and 'availability' not in row['profile']
+
+
+def test_imported_directory_search_pagination_privacy_and_account_deduplication(client):
+    from psycopg.types.json import Jsonb
+    prefix='DirectoryFixtureOnly'
+    with psycopg.connect(URL,autocommit=True) as c:
+        for i in range(65):
+            c.execute('INSERT INTO imported_students(email,display_name,institution,skills) VALUES(%s,%s,%s,%s) ON CONFLICT(email) DO NOTHING',
+                      (f'directory{i}@example.com',f'{prefix} {i}','Fixture College',Jsonb([{'name':'Rust','category':'technical','proficiency':None}])))
+        # Registration without claiming must not create a duplicate or expose a private account.
+        c.execute('INSERT INTO imported_students(email,display_name,skills) VALUES(%s,%s,%s) ON CONFLICT(email) DO NOTHING',
+                  ('fixture0@example.com','Directory private duplicate',Jsonb([{'name':'Rust','category':'technical','proficiency':2}])))
+    try:
+        rows=[]
+        for offset in (0,20,40,60):
+            r=request(client,'post','/teammates/search',json={'query':prefix,'offset':offset})
+            assert r.status_code==200,r.text
+            assert r.json()['total']==65
+            rows.extend(r.json()['items'])
+        assert len(rows)==65 and len({r['profile']['id'] for r in rows})==65
+        for row in rows:
+            assert row['source']=='imported' and row['can_invite'] is False
+            assert row['profile']['id'].startswith('imported:')
+            assert row['profile']['skills'][0]['proficiency'] is None
+            assert set(row['profile'])=={'id','display_name','bio','skills','roles','interests','format','experience','institution'}
+        assert request(client,'post','/teammates/search',json={'query':'Directory private duplicate'}).json()['items']==[]
+        # Imported identifiers cannot be used as invitation recipients.
+        assert request(client,'post','/teams/'+IDS[0]+'/invitations',json={'recipient_id':rows[0]['profile']['id']}).status_code==422
+        assert request(client,'post','/teammates/search',json={'query':'Rust'}).json()['total']>=65
+    finally:
+        execute("DELETE FROM imported_students WHERE email LIKE 'directory%@example.com'")
