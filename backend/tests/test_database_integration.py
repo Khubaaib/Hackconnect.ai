@@ -274,4 +274,4 @@ def test_imported_directory_search_pagination_privacy_and_account_deduplication(
         assert request(client,'post','/teams/'+IDS[0]+'/invitations',json={'recipient_id':rows[0]['profile']['id']}).status_code==422
         assert request(client,'post','/teammates/search',json={'query':'Rust'}).json()['total']>=65
     finally:
-        execute("DELETE FROM imported_students WHERE email LIKE 'directory%@example.com'")
+        execute("DELETE FROM imported_students WHERE email LIKE %s", ('directory%@example.com',))
