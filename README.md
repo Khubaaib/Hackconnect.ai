@@ -18,6 +18,51 @@ A platform for students to discover channel announcements, find complementary te
 
 HackConnect.AI brings hackathon discovery, explainable skill matching, and team collaboration into one workflow. Students build a profile, explore reviewed opportunities, form a complementary squad, and manage their work together.
 
+## Live demo and database walkthrough
+
+- **Live website:** https://hackconnect-ai.vercel.app/
+- **Teammate search:** https://hackconnect-ai.vercel.app/dashboard?tab=teammates
+- **Administrator dashboard:** https://hackconnect-ai.vercel.app/admin (administrator sign-in required)
+
+The source code is hosted here on GitHub. The frontend runs on Vercel, the Python/FastAPI backend runs on Render, and the application records are stored in the project's **Supabase PostgreSQL database**. Supabase Auth manages login accounts.
+
+| Records | Location |
+| --- | --- |
+| Uploaded CSV/Excel student records | `public.imported_students` |
+| Registered students' application profiles | `public.user_profiles` |
+| Student skill assignments and skill names | `public.user_skills` and `public.skills` |
+| Hackathon records and skill requirements | `public.hackathons` and `public.hackathon_requirements` |
+| Squads and memberships | `public.teams` and `public.team_members` |
+| Login accounts | Supabase Authentication → Users (`auth.users`) |
+
+### Show the records during a project demonstration
+
+1. Sign in to the live app using the existing administrator account and open **Admin**.
+2. Select **students** to show application profiles. Select **imported-students** to show uploaded records. These are separate datasets.
+3. To show the actual database, open https://supabase.com/dashboard in the project owner's account. Select the project used by the backend's `SUPABASE_URL`, open **Table Editor**, choose the `public` schema, and open the tables listed above. Do not create another project.
+4. Use **Authentication → Users** to explain the difference between login accounts and profile records.
+5. For a presentation without exposing individual student details, run these read-only counts in Supabase SQL Editor:
+
+```sql
+SELECT 'uploaded_student_records' AS record_type, count(*) AS total
+FROM public.imported_students
+UNION ALL
+SELECT 'application_profiles', count(*) FROM public.user_profiles
+UNION ALL
+SELECT 'discovery_enabled_profiles', count(*)
+FROM public.user_profiles
+WHERE onboarding_complete AND discoverable
+  AND contact_consent AND open_to_invitations
+UNION ALL
+SELECT 'hackathons', count(*) FROM public.hackathons
+UNION ALL
+SELECT 'squads', count(*) FROM public.teams;
+```
+
+Uploaded rows do not automatically become public teammates. Their owners must claim the matching imported record, complete onboarding, and enable discovery, contact consent, and invitations. The app also excludes the searching user and blocked profiles.
+
+**Verified status on November 4, 2026 (IST):** the teammate-search release is deployed. Live profile recommendations, skill keyword searches, and the no-results state were tested. The latest checks passed: 83 backend tests, 10 PostgreSQL integration tests, and 22 desktop/mobile browser tests; four credential-dependent staging tests were skipped. Grok-assisted search is implemented, but the last live xAI request returned HTTP 400 with a credential-related error. A valid `XAI_API_KEY` must be configured and verified before presenting Grok as operational. Keyword matching remains available during that failure.
+
 ## Teammate search repair
 
 Dashboard → **Teammates** searches active student profiles directly, without requiring an event first. Enable Grok to interpret requests such as “Find a Python and React teammate for an education project.” Results come from real opted-in profiles, with evidence and an explicit keyword fallback if AI is unavailable. The **Opportunities** tab restores reviewed hackathon recommendations alongside the Telegram feed. Imported records become searchable after their owner claims the record, completes onboarding, and enables discovery and invitations.
