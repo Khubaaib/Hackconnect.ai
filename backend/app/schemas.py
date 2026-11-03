@@ -134,6 +134,16 @@ class Resource(Strict):
     url:str
     _url=field_validator('url')(safe_url)
 class CopilotRequest(Strict):prompt:str=Field(min_length=3,max_length=2000)
+class TeammateSearch(Strict):
+    query:str=Field(default='',max_length=2000)
+    use_ai:bool=False
+    offset:int=Field(default=0,ge=0)
+    limit:int=Field(default=20,ge=1,le=50)
+class SearchIntent(Strict):
+    skills:list[str]=Field(default_factory=list,max_length=20)
+    roles:list[str]=Field(default_factory=list,max_length=10)
+    interests:list[str]=Field(default_factory=list,max_length=10)
+    explanation:str=Field(default='',max_length=1000)
 class SuggestedTask(Strict):
     title:str=Field(max_length=200)
     description:str=Field(max_length=3000)

@@ -32,7 +32,7 @@ export default function TelegramFeed(){
    {post.body&&<p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{post.body.length>1800?post.body.slice(0,1800)+'…':post.body}</p>}
    {post.has_media&&<p className="small-text">This post includes an attachment. Open Telegram to view the poster or file.</p>}
    <div className="card-actions">{post.event_id&&<a className="button small" href={'/hackathons/'+post.event_id}>Find teammates / build squad</a>}<a className="button secondary small" href={post.source_url} target="_blank" rel="noopener noreferrer">Open original post</a></div>
-   {!post.event_id&&<p className="small-text">Team formation becomes available after the event dates and requirements are reviewed.</p>}
+   {!post.event_id&&<p className="small-text">Team formation becomes available after the event dates and requirements are reviewed. <a className="text-button" href="/dashboard?tab=teammates">Find teammates now →</a></p>}
   </article>)}</div>:!error&&<Empty title={feed?.configured?'No announcements match this view':'Your channel connection is being set up'}><p>{feed?.configured?'New hackathon and project-competition posts will appear after the next channel update.':'Your administrator is completing the Telegram connection. You do not need to post announcements yourself.'}</p></Empty>}
   {feed&&feed.total>0&&<div className="pagination"><button className="button secondary small" disabled={offset===0||loading} onClick={()=>setOffset(Math.max(0,offset-20))}>Previous</button><span className="small-text">{feed.total} announcements</span><button className="button secondary small" disabled={offset+20>=feed.total||loading} onClick={()=>setOffset(offset+20)}>Next</button></div>}
  </section>;

@@ -18,6 +18,10 @@ A platform for students to discover channel announcements, find complementary te
 
 HackConnect.AI brings hackathon discovery, explainable skill matching, and team collaboration into one workflow. Students build a profile, explore reviewed opportunities, form a complementary squad, and manage their work together.
 
+## Teammate search repair
+
+Dashboard → **Teammates** searches active student profiles directly, without requiring an event first. Enable Grok to interpret requests such as “Find a Python and React teammate for an education project.” Results come from real opted-in profiles, with evidence and an explicit keyword fallback if AI is unavailable. The **Opportunities** tab restores reviewed hackathon recommendations alongside the Telegram feed. Imported records become searchable after their owner claims the record, completes onboarding, and enables discovery and invitations.
+
 ## Project status
 
 The application is hosted on Vercel, with a FastAPI backend on Render and PostgreSQL, authentication, and realtime services on Supabase. The Telegram collector, backend health endpoints, and deployed administrator review form were checked on October 13, 2026 (IST). Automated tests cover the review-to-squad workflow using synthetic accounts; real student onboarding remains pending.
