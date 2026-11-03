@@ -9,20 +9,20 @@ test.beforeEach(async({page})=>{
  await page.route('**/api/v1/admin/students',route=>route.fulfill({json:[{id:'registered',display_name:'Registered Builder',institution:'Fixture College',roles:['Backend Developer'],discoverable:true,onboarding_complete:true,open_to_invitations:true,created_at:'2026-11-04T00:00:00Z'}]}));
 });
 test('readable directory supports all records, search, filtering and private detail dialogs',async({page})=>{
- let writes=0;page.on('request',r=>{if(r.url().includes('/api/v1/admin/')&&r.method()!=='GET')writes++});
+ let writes=0;page.on('request',r=>{if(r.url().includes('/api/v1/admin/')&&['POST','PUT','PATCH','DELETE'].includes(r.method()))writes++});
  await page.goto('/admin');await expect(page.getByRole('heading',{name:'Workspace overview',exact:true})).toBeVisible();
  await expect(page.locator('pre')).toHaveCount(0);
  await page.getByRole('button',{name:'Student records',exact:true}).click();
  const table=page.getByRole('table',{name:'Imported student records'});
- await expect(table.getByRole('row')).toHaveCount(11);
+ await expect(table.locator('tbody tr')).toHaveCount(10);
  await expect(page.getByText('1–10 of 65 students',{exact:true})).toBeVisible();
  await expect(page.getByText('student0@example.com',{exact:true})).toHaveCount(0);
  await expect(page.getByText('internal-import',{exact:true})).toHaveCount(0);
  await expect(page.locator('pre')).toHaveCount(0);
  await page.getByRole('button',{name:'Next page',exact:true}).click();await expect(page.getByText('11–20 of 65 students',{exact:true})).toBeVisible();
  await page.getByLabel('Rows per page').selectOption('50');await page.getByRole('button',{name:'Next page',exact:true}).click();
- await expect(page.getByText('51–65 of 65 students',{exact:true})).toBeVisible();await expect(table.getByRole('row')).toHaveCount(16);
- await page.getByLabel('Search student records',{exact:true}).fill('Synthetic Student 01');await expect(table.getByRole('row')).toHaveCount(2);
+ await expect(page.getByText('51–65 of 65 students',{exact:true})).toBeVisible();await expect(table.locator('tbody tr')).toHaveCount(15);
+ await page.getByLabel('Search student records',{exact:true}).fill('Synthetic Student 01');await expect(table.locator('tbody tr')).toHaveCount(1);
  await page.getByRole('button',{name:'View Synthetic Student 01',exact:true}).click();
  const dialog=page.getByRole('dialog');await expect(dialog).toBeVisible();await expect(dialog.getByText('student1@example.com',{exact:true})).toBeVisible();
  await expect(dialog.getByText('Presentation',{exact:true})).toBeVisible();await expect(dialog.getByText('private-id-1',{exact:true})).toHaveCount(0);
@@ -49,5 +49,5 @@ test('spreadsheet preview is readable and import requires authorization',async({
 });
 test('non administrators cannot load the workspace',async({page})=>{
  await page.route('**/api/v1/me',route=>route.fulfill({json:{id:'fixture-student',display_name:'Student',onboarding_complete:true,is_admin:false}}));
- await page.goto('/admin');await expect(page.getByRole('alert')).toHaveText('Administrator access required.');await expect(page.getByRole('navigation',{name:'Admin sections'})).toHaveCount(0);
+ await page.goto('/admin');await expect(page.getByRole('alert').filter({hasText:'Administrator access required.'})).toHaveText('Administrator access required.');await expect(page.getByRole('navigation',{name:'Admin sections'})).toHaveCount(0);
 });

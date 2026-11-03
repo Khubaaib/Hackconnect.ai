@@ -27,9 +27,9 @@ export function StudentDetails({record,imported,busy,onInvite,onHide}:{record:an
 }
 export function StudentTable({rows,imported,onSelect}:{rows:any[];imported:boolean;onSelect:(record:any)=>void}){
  if(!rows.length)return <Empty title="No students match this view"><p>Try another name, skill, or status.</p></Empty>;
- return <div className="admin-table-scroll"><table className="admin-table" aria-label={imported?'Imported student records':'Registered student profiles'}><thead><tr><th>Student</th><th>{imported?'Roll number':'Institution'}</th><th>{imported?'Skills & strengths':'Preferred roles'}</th><th>Status</th><th><span className="admin-sr-only">Actions</span></th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>
+ return <div className="admin-table-scroll"><table className="admin-table admin-students-table" role="table" aria-label={imported?'Imported student records':'Registered student profiles'}><thead><tr><th>Student</th><th>{imported?'Roll number':'Institution'}</th><th>{imported?'Skills & strengths':'Preferred roles'}</th><th>Status</th><th><span className="admin-sr-only">Actions</span></th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>
   <td><div className="admin-person"><span className="admin-avatar" aria-hidden="true">{(r.display_name||'?').trim().split(/\s+/).map((s:string)=>s[0]).slice(0,2).join('').toUpperCase()}</span><div><button className="admin-name" onClick={()=>onSelect(r)}>{r.display_name||'Unnamed student'}</button>{imported&&r.institution&&<small>{r.institution}</small>}</div></div></td>
-  <td><span className={imported?'admin-roll':''}>{(imported?r.roll_number:r.institution)||'—'}</span></td>
+  <td data-label={imported?'Roll number':'Institution'}><span className={imported?'admin-roll':''}>{(imported?r.roll_number:r.institution)||'—'}</span></td>
   <td>{imported?<Skills skills={r.skills}/>:<div className="admin-skills">{(r.roles||[]).slice(0,2).map((x:string)=><span key={x}>{x}</span>)}{!r.roles?.length&&<span className="admin-placeholder">Not selected</span>}</div>}</td>
   <td><Status tone={imported?(r.claimed_by?'green':'amber'):(r.discoverable?'green':'neutral')}>{imported?(r.claimed_by?'Claimed':'Unclaimed'):(r.discoverable?'Discoverable':'Hidden')}</Status></td>
   <td><button className="text-button" aria-label={'View '+r.display_name} onClick={()=>onSelect(r)}>View details</button></td>
