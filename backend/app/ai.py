@@ -18,6 +18,15 @@ class GrokProvider:
                     if r.status_code==429 or r.status_code>=500:
                         if attempt<2:await asyncio.sleep(.5*2**attempt);continue
                         raise HTTPException(503,'Grok is busy. Try again later; matching still works.')
+                    if r.status_code>=400:
+                        # Never expose upstream response bodies: they may contain credentials or prompts.
+                        reason='Check the configured xAI model and API access.'
+                        if r.status_code==401:reason='The configured xAI API key was rejected. Update XAI_API_KEY in Render.'
+                        elif r.status_code in (402,403):
+                            upstream=r.text.casefold()
+                            reason=('The xAI account has insufficient credits. Add credits in the xAI console.' if any(word in upstream for word in ('credit','balance','payment','billing')) else 'The xAI account cannot access this API or model. Check API permissions and billing.')
+                        elif r.status_code==404:reason='The configured xAI model or endpoint was not found. Check XAI_MODEL in Render.'
+                        raise HTTPException(503,f'Grok returned HTTP {r.status_code}. {reason}')
                     r.raise_for_status();data=r.json();output=output_model.model_validate_json(data['choices'][0]['message']['content'])
                     return output.model_dump(),data.get('usage',{})
                 except HTTPException:raise

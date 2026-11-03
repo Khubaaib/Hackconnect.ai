@@ -247,7 +247,7 @@ async def search_teammates(body:TeammateSearch,user=Depends(actor)):
                 mode='ai'
             except HTTPException as exc:
                 if exc.status_code not in (429,503):raise
-                notice='AI search is temporarily unavailable. Showing matches from profile keywords instead.'
+                notice='AI search is temporarily unavailable. Showing matches from profile keywords instead. '+str(exc.detail)
     ranked=rank_teammates(p,candidates,body.query,intent)
     for row in ranked:row['profile']=public_profile(row['profile'])
     return {'items':ranked[body.offset:body.offset+body.limit],'total':len(ranked),'searchable_profiles':len(candidates),'mode':mode,'notice':notice,'criteria':{k:v for k,v in (intent or {}).items() if k!='cached'},'bounded':bounded,'score_label':'Profile relevance, not a probability of joining'}

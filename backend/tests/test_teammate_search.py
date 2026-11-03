@@ -95,3 +95,19 @@ def test_ai_search_uses_query_only_and_outage_falls_back(search_client,monkeypat
     monkeypatch.setattr(main,'copilot',outage)
     r=search_client.post('/api/v1/teammates/search',json={'query':'React','use_ai':True})
     assert r.status_code==200 and r.json()['mode']=='keyword' and r.json()['notice'] and r.json()['total']==1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,message,expected',[(401,'SECRET do not expose','API key was rejected'),(403,'insufficient credits SECRET','insufficient credits'),(404,'SECRET do not expose','model or endpoint was not found')])
+async def test_provider_explains_config_failures_without_leaking_upstream(monkeypatch,status,message,expected):
+    import httpx
+    from app.ai import GrokProvider
+    from app.config import settings
+    monkeypatch.setattr(settings(),'xai_api_key','test-only');monkeypatch.setattr(settings(),'xai_model','test-only')
+    calls=[]
+    async def post(*a,**kw):
+        calls.append(1)
+        return httpx.Response(status,text=message,request=httpx.Request('POST','https://api.x.ai/v1/chat/completions'))
+    monkeypatch.setattr(httpx.AsyncClient,'post',post)
+    with pytest.raises(HTTPException) as error:await GrokProvider().generate('test',{})
+    assert expected in error.value.detail and 'SECRET' not in error.value.detail
+    assert len(calls)==1
