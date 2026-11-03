@@ -24,7 +24,7 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - name: Unit and API guards
         working-directory: backend
-        run: python -m pytest tests/test_core.py tests/test_api.py tests/test_telegram.py -q
+        run: python -m pytest tests/test_core.py tests/test_api.py tests/test_telegram.py tests/test_teammate_search.py -q
       - name: Initialize disposable database
         env:
           PGPASSWORD: test-only

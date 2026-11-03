@@ -71,9 +71,18 @@ def rank_candidates(profile,event,candidates,current_members=()):
         if common==0:continue
         skills={normalize_skill(s['name']) for s in c.get('skills',[]) if (s.get('proficiency') or 0)>=requirements.get(normalize_skill(s['name']),1)}
         contribution=skills&missing
-        denominator=len(missing) or 1
-        score=round(80*len(contribution)/denominator+(10 if common else 0)+(10 if set(c.get('interests',[]))&set(event.get('domains',[])) else 0))
-        ranked.append({'profile':c,'score':score,'contributed_skills':sorted(contribution),'remaining_gaps':sorted(missing-contribution),'availability_known':common is not None,'explanation':'Covers '+(', '.join(sorted(contribution)) or 'no additional required skills')})
+        # Once gaps are filled, measure event relevance rather than dividing by an empty gap set.
+        targets=missing or set(requirements)
+        signals=[(.8,len(skills&targets)/len(targets))] if targets else []
+        domains={s.casefold() for s in event.get('domains',[])}
+        if domains:signals.append((.1,len({s.casefold() for s in c.get('interests',[])}&domains)/len(domains)))
+        if common is not None:signals.append((.1,float(common>0)))
+        if not signals:
+            base=rank_teammates(profile,[c])
+            score=base[0]['score'] if base else 0
+        else:score=round(100*sum(w*v for w,v in signals)/sum(w for w,v in signals))
+        explanation=('Covers '+', '.join(sorted(contribution))) if contribution else ('Relevant event skills: '+', '.join(sorted(skills&targets)) if skills&targets else 'No additional required skills verified; review their profile')
+        ranked.append({'profile':c,'score':score,'contributed_skills':sorted(contribution),'remaining_gaps':sorted(missing-contribution),'availability_known':common is not None,'explanation':explanation})
     return sorted(ranked,key=lambda x:(-x['score'],str(x['profile']['id'])))
 def optimize_squad(ranked,slots):
     # Exhaustive search only over 15 candidates and at most 4 seats: <=1940 combinations.
@@ -89,3 +98,49 @@ def optimize_squad(ranked,slots):
     return {'members':list(best),'coverage':sorted(set(s for x in best for s in x['contributed_skills'])),'limited_search':True,'note':'Proposal only. Invitations and acceptance are required. Search is bounded to 15 candidates and 4 additional seats.'}
 def input_hash(profile,event):
     return hashlib.sha256(json.dumps([profile,event],sort_keys=True,default=str).encode()).hexdigest()
+
+def query_terms(query):
+    words=re.findall(r'[\w.+/#-]+',query.casefold())
+    stop={'i','a','an','the','for','and','or','with','who','can','is','in','to','me','my','need','find','want','looking','someone','teammate','teammates','student','students','build','project','using','help','please'}
+    return {normalize_skill(w) for w in words if w not in stop}
+
+def rank_teammates(profile,candidates,query='',intent=None):
+    """Search actual opted-in profiles; unknown proficiency remains unknown."""
+    intent=intent or {}
+    requested={normalize_skill(s) for s in intent.get('skills',[])}
+    roles={s.casefold() for s in intent.get('roles',[])}
+    interests={s.casefold() for s in intent.get('interests',[])}
+    terms=query_terms(query)
+    own={normalize_skill(s['name']) for s in profile.get('skills',[])}
+    ranked=[]
+    for c in candidates:
+        if str(c['id'])==str(profile['id']) or not all(c.get(k) for k in ('discoverable','contact_consent','open_to_invitations','onboarding_complete')):continue
+        skills={normalize_skill(s['name']) for s in c.get('skills',[])}
+        c_roles={s.casefold() for s in c.get('roles',[])}
+        c_interests={s.casefold() for s in c.get('interests',[])}
+        # Only fields eligible for public discovery participate in text search.
+        text=' '.join([c.get('display_name',''),c.get('bio',''),*skills,*c_roles,*c_interests]).casefold()
+        text_terms=query_terms(text)
+        text_hits={s for s in terms if s in text_terms or s in skills}
+        matches=skills&requested
+        role_hits=roles&c_roles;interest_hits=interests&c_interests
+        if query.strip():
+            if not (text_hits or matches or role_hits or interest_hits):continue
+            signals=[]
+            if requested:signals.append((.7,len(matches)/len(requested)))
+            if roles:signals.append((.2,len(role_hits)/len(roles)))
+            if interests:signals.append((.1,len(interest_hits)/len(interests)))
+            if not signals:signals=[(1,len(text_hits)/max(len(terms),1))]
+            score=round(100*sum(w*v for w,v in signals)/sum(w for w,v in signals))
+            if not score:continue
+            evidence=sorted(matches or text_hits)+sorted(role_hits|interest_hits)
+            explanation='Profile evidence: '+', '.join(evidence)
+        else:
+            shared=c_interests&{s.casefold() for s in profile.get('interests',[])}
+            additional=skills-own
+            # This is a browsing relevance score, not an invented AI confidence.
+            score=round(100*(.6*len(additional)/max(len(skills),1)+.3*bool(shared)+.1*bool(c_roles-set(profile.get('roles',[])))))
+            explanation=('Adds '+', '.join(sorted(additional))) if additional else 'Similar skills; discuss how to share the work'
+            if shared:explanation+='; shared interests: '+', '.join(sorted(shared))
+        ranked.append({'profile':c,'score':score,'explanation':explanation,'matching_skills':sorted(matches),'additional_skills':sorted(skills-own),'unknown_proficiency':[s['name'] for s in c.get('skills',[]) if s.get('proficiency') is None]})
+    return sorted(ranked,key=lambda x:(-x['score'],str(x['profile']['id'])))

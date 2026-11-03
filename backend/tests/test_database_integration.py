@@ -214,3 +214,33 @@ def test_telegram_review_to_matched_squad_and_private_chat(client,monkeypatch):
     assert request(client,'get','/telegram/announcements').json()['items']==[]
     assert request(client,'post',f'/admin/ingestion/{ingestion_id}/publish',json=event).status_code==409
 
+
+def test_profile_discovery_refresh_blocks_and_ai_budget(client,monkeypatch):
+    from app.ai import GrokProvider
+    from app.schemas import SearchIntent
+    for i in (0,1,2):
+        body={'display_name':f'Search fixture {i}','country':'India','onboarding_complete':True,
+              'discoverable':i==1,'contact_consent':True,'open_to_invitations':True,
+              'skills':[{'name':'React','proficiency':2}]}
+        assert request(client,'put','/me',user=i,json=body).status_code==200
+    path='/teammates/search'
+    result=request(client,'post',path,json={'query':'React'}).json()
+    assert IDS[1] in [r['profile']['id'] for r in result['items']]
+    assert IDS[2] not in [r['profile']['id'] for r in result['items']]
+    body['discoverable']=True
+    assert request(client,'put','/me',user=2,json=body).status_code==200
+    assert IDS[2] in [r['profile']['id'] for r in request(client,'post',path,json={'query':'React'}).json()['items']]
+    assert request(client,'put','/blocks/'+IDS[0],user=2).status_code==200
+    assert IDS[2] not in [r['profile']['id'] for r in request(client,'post',path,json={'query':'React'}).json()['items']]
+    assert request(client,'delete','/blocks/'+IDS[0],user=2).status_code==200
+    monkeypatch.setattr(settings(),'xai_api_key','fixture-only');monkeypatch.setattr(settings(),'xai_model','fixture-only')
+    async def generate(self,prompt,context,output_model,instructions):
+        assert context=={} and output_model is SearchIntent
+        return {'skills':['React'],'roles':[],'interests':[],'explanation':'Frontend'}, {'prompt_tokens':10,'completion_tokens':5}
+    monkeypatch.setattr(GrokProvider,'generate',generate)
+    r=request(client,'post',path,json={'query':'Frontend fixture unique search','use_ai':True})
+    assert r.status_code==200,r.text
+    assert r.json()['mode']=='ai' and r.json()['total']>=1
+    assert execute("SELECT count(*) FROM ai_usage WHERE user_id=%s AND team_id IS NULL AND status='completed'",(IDS[0],))[0][0]>=1
+    for row in r.json()['items']:
+        assert 'email' not in row['profile'] and 'availability' not in row['profile']
