@@ -32,7 +32,7 @@ test('administrator reviews a Telegram announcement using ordinary event fields'
  await page.route('**/api/v1/admin/hackathons',route=>route.fulfill({json:[]}));
  await page.route('**/api/v1/admin/ingestion',route=>route.fulfill({json:[{id:'fixture-announcement',status:'pending',payload:{title:'Fixture reviewed event',text:'Read original requirements.',source_url:'https://t.me/c/1111222333/12'}}]}));
  await page.goto('/admin');
- await page.getByRole('button',{name:'ingestion',exact:true}).click();
+ await page.getByRole('button',{name:'Announcement review',exact:true}).click();
  await page.getByRole('button',{name:'Review as event',exact:true}).click();
  await expect(page.getByLabel('Hackathon title',{exact:true})).toHaveValue('Fixture reviewed event');
  await expect(page.getByLabel('Original announcement link',{exact:true})).toHaveValue('https://t.me/c/1111222333/12');
